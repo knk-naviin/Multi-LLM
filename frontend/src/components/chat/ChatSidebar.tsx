@@ -45,7 +45,10 @@ export function ChatSidebar({
       {/* New Chat button */}
       <button
         type="button"
-        onClick={() => { onStartNewChat(); onNavigate?.(); }}
+        onClick={() => {
+          onStartNewChat();
+          onNavigate?.();
+        }}
         className="mb-3 flex w-full items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--surface-alt)]"
       >
         <Plus size={14} />
@@ -81,7 +84,9 @@ export function ChatSidebar({
       {/* Folders */}
       <div className="mb-1">
         <div className="mb-1.5 flex items-center justify-between px-1">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">Folders</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">
+            Folders
+          </span>
         </div>
 
         <div className="mb-2 flex gap-1.5">
@@ -109,7 +114,10 @@ export function ChatSidebar({
         <div className="custom-scrollbar grid max-h-[140px] gap-0.5 overflow-y-auto">
           <button
             type="button"
-            onClick={() => { onSelectFolder(null); onNavigate?.(); }}
+            onClick={() => {
+              onSelectFolder(null);
+              onNavigate?.();
+            }}
             className={`rounded-md px-2 py-1.5 text-left text-xs transition ${
               selectedFolderId === null
                 ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
@@ -123,7 +131,10 @@ export function ChatSidebar({
             <button
               key={folder.id}
               type="button"
-              onClick={() => { onSelectFolder(folder.id); onNavigate?.(); }}
+              onClick={() => {
+                onSelectFolder(folder.id);
+                onNavigate?.();
+              }}
               title={folder.description}
               className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition ${
                 selectedFolderId === folder.id
@@ -137,14 +148,18 @@ export function ChatSidebar({
           ))}
 
           {!folders.length && (
-            <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">No folders yet.</p>
+            <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
+              No folders yet.
+            </p>
           )}
         </div>
       </div>
 
       {/* Recent Chats */}
       <div className="mb-1 mt-2 px-1">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">Recent</span>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">
+          Recent
+        </span>
       </div>
 
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
@@ -153,7 +168,10 @@ export function ChatSidebar({
             <button
               key={chat.id}
               type="button"
-              onClick={() => { onSelectChat(chat.id); onNavigate?.(); }}
+              onClick={() => {
+                onSelectChat(chat.id);
+                onNavigate?.();
+              }}
               className={`grid gap-0.5 rounded-md px-2 py-1.5 text-left transition ${
                 currentChatId === chat.id
                   ? "bg-[var(--surface-alt)]"
@@ -161,13 +179,17 @@ export function ChatSidebar({
               }`}
             >
               <span className="flex items-center gap-1.5">
-                <MessageSquare size={11} className="shrink-0 text-[var(--text-soft)]" />
+                <MessageSquare
+                  size={11}
+                  className="shrink-0 text-[var(--text-soft)]"
+                />
                 <span className="truncate text-xs font-medium text-[var(--text-primary)]">
                   {chat.title || "Untitled"}
                 </span>
               </span>
               <span className="truncate pl-[18px] text-[10px] text-[var(--text-soft)]">
-                {chat.last_model || ""} {chat.last_message ? `· ${chat.last_message}` : ""}
+                {chat.last_model || ""}{" "}
+                {chat.last_message ? `· ${chat.last_message}` : ""}
               </span>
             </button>
           ))}
@@ -190,8 +212,12 @@ export function ChatSidebar({
               {user.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-[var(--text-primary)]">{user.name}</p>
-              <p className="truncate text-[10px] text-[var(--text-soft)]">{user.email}</p>
+              <p className="truncate text-xs font-medium text-[var(--text-primary)]">
+                {user.name}
+              </p>
+              <p className="truncate text-[10px] text-[var(--text-soft)]">
+                {user.email}
+              </p>
             </div>
           </div>
         ) : (
