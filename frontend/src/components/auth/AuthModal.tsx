@@ -59,6 +59,15 @@ function loadGoogleScript(): Promise<void> {
   return googleScriptPromise;
 }
 
+function LoadingOverlay({ message }: { message: string }) {
+  return (
+    <div className="loading-overlay">
+      <div className="spinner" />
+      <p className="text-sm font-medium text-[var(--text-secondary)]">{message}</p>
+    </div>
+  );
+}
+
 export function AuthModal({ open, onClose }: AuthModalProps) {
   const { showAlert } = useAlerts();
   const { signIn, signUp, signInWithGoogle } = useAuth();
@@ -70,6 +79,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
 
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -86,11 +96,14 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
     async (credential: string) => {
       if (!credential || submitting || googleLoading) return;
       setGoogleLoading(true);
+      setShowLoadingScreen(true);
       try {
         await signInWithGoogle(credential);
         showAlert("Signed in with Google.", "success");
         closeModal({ force: true });
+        setTimeout(() => setShowLoadingScreen(false), 800);
       } catch (error) {
+        setShowLoadingScreen(false);
         showAlert(error instanceof Error ? error.message : "Google sign-in failed");
       } finally {
         setGoogleLoading(false);
@@ -147,6 +160,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
     if (submitting || googleLoading) return;
 
     setSubmitting(true);
+    setShowLoadingScreen(true);
     try {
       if (mode === "login") {
         await signIn(email, password);
@@ -156,24 +170,30 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
         showAlert("Account created successfully.", "success");
       }
       closeModal({ force: true });
+      setTimeout(() => setShowLoadingScreen(false), 800);
     } catch (error) {
+      setShowLoadingScreen(false);
       showAlert(error instanceof Error ? error.message : "Authentication failed");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!open) return null;
+  if (!open && !showLoadingScreen) return null;
+
+  if (showLoadingScreen) {
+    return <LoadingOverlay message={mode === "signup" ? "Creating your account..." : "Signing you in..."} />;
+  }
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={() => closeModal()}
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] shadow-lg"
+        className="modal-content w-full max-w-sm overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative p-6">
@@ -223,7 +243,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
             {mode === "signup" && (
               <label className="grid gap-1 text-xs text-[var(--text-soft)]">
                 Full Name
-                <span className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2">
+                <span className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 transition-colors focus-within:border-[var(--brand)]">
                   <User size={14} className="text-[var(--text-soft)]" />
                   <input
                     required
@@ -238,7 +258,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
 
             <label className="grid gap-1 text-xs text-[var(--text-soft)]">
               Email
-              <span className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2">
+              <span className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 transition-colors focus-within:border-[var(--brand)]">
                 <Mail size={14} className="text-[var(--text-soft)]" />
                 <input
                   required
@@ -253,7 +273,7 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
 
             <label className="grid gap-1 text-xs text-[var(--text-soft)]">
               Password
-              <span className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2">
+              <span className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 transition-colors focus-within:border-[var(--brand)]">
                 <Lock size={14} className="text-[var(--text-soft)]" />
                 <input
                   required

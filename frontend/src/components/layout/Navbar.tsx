@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { Menu, Moon, Settings, Sun, LogOut, Info, MessageSquare, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { AuthModal } from "@/components/auth/AuthModal";
+import { useAlerts } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { APP_NAME } from "@/lib/constants";
@@ -20,10 +22,14 @@ export function Navbar() {
   const isChatPage = pathname.startsWith("/chat");
 
   const { isAuthenticated, user, signOut } = useAuth();
+  const { showAlert } = useAlerts();
   const { theme, toggleTheme } = useTheme();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -41,10 +47,23 @@ export function Navbar() {
     window.dispatchEvent(new CustomEvent("swastik:toggle-workspace-sidebar", { detail: { open: true } }));
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut();
+      showAlert("You have been signed out successfully.", "success");
+    } catch {
+      showAlert("Failed to sign out. Please try again.");
+    } finally {
+      setLoggingOut(false);
+      setLogoutModalOpen(false);
+    }
+  };
+
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-[var(--border)] bg-[var(--nav-bg)] backdrop-blur-md">
-        <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-4">
+        <div className="flex h-12 items-center justify-between px-4">
           {/* Left */}
           <div className="flex items-center gap-3">
             <button
@@ -112,7 +131,7 @@ export function Navbar() {
                 </button>
 
                 {profileOpen && (
-                  <div className="absolute right-0 mt-1 w-44 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] shadow-lg">
+                  <div className="animate-fade-in absolute right-0 mt-1 w-44 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] shadow-lg">
                     <div className="border-b border-[var(--border)] px-3 py-2">
                       <p className="truncate text-sm font-medium text-[var(--text-primary)]">{user?.name}</p>
                       <p className="truncate text-xs text-[var(--text-soft)]">{user?.email}</p>
@@ -129,7 +148,7 @@ export function Navbar() {
                       type="button"
                       onClick={() => {
                         setProfileOpen(false);
-                        signOut().catch(() => null);
+                        setLogoutModalOpen(true);
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-500 hover:bg-red-500/5"
                     >
@@ -140,13 +159,14 @@ export function Navbar() {
                 )}
               </div>
             ) : (
-              <Link
-                href="/chat?auth=1"
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--brand-hover)]"
               >
                 <User size={14} />
                 Sign In
-              </Link>
+              </button>
             )}
           </div>
         </div>
@@ -200,6 +220,53 @@ export function Navbar() {
           </nav>
         </div>
       </div>
+
+      {/* Auth Modal from Navbar */}
+      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+
+      {/* Logout Confirmation Modal */}
+      {logoutModalOpen && (
+        <div
+          className="modal-backdrop fixed inset-0 z-[130] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => !loggingOut && setLogoutModalOpen(false)}
+        >
+          <div
+            className="modal-content w-full max-w-sm overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+                <LogOut size={20} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-[var(--text-primary)]">Sign Out</h3>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                Are you sure you want to sign out? Your chat history will be saved and available when you sign back in.
+              </p>
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  disabled={loggingOut}
+                  onClick={() => setLogoutModalOpen(false)}
+                  className="flex-1 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-alt)] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={loggingOut}
+                  onClick={handleLogout}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600 disabled:opacity-50"
+                >
+                  {loggingOut && (
+                    <div className="spinner !h-4 !w-4 !border-2 !border-white/30 !border-t-white" />
+                  )}
+                  {loggingOut ? "Signing out..." : "Sign Out"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

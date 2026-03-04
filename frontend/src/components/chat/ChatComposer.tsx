@@ -27,7 +27,7 @@ export function ChatComposer({ value, disabled, onChange, onSend }: ChatComposer
 
   return (
     <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 pb-3 pt-2">
-      <div className="mx-auto flex max-w-3xl items-end gap-2">
+      <div className="mx-auto flex max-w-4xl items-end gap-2">
         <div className="flex min-h-[40px] flex-1 items-end rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 focus-within:border-[var(--text-soft)] transition-colors">
           <textarea
             ref={textareaRef}
@@ -56,7 +56,7 @@ export function ChatComposer({ value, disabled, onChange, onSend }: ChatComposer
           <ArrowUp size={16} />
         </button>
       </div>
-      <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-[var(--text-soft)]">
+      <p className="mx-auto mt-1.5 max-w-4xl text-center text-[10px] text-[var(--text-soft)]">
         AI responses may be inaccurate. Verify important outputs.
       </p>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PanelLeft, Plus, ChevronDown } from "lucide-react";
+import { PanelLeft, Plus, ChevronDown, ChevronRight, FolderOpen, Home } from "lucide-react";
 
 import { AuthModal } from "@/components/auth/AuthModal";
 import { ChatComposer } from "@/components/chat/ChatComposer";
@@ -56,6 +56,23 @@ const MODEL_OPTIONS: { value: ModelName | "auto"; label: string }[] = [
   { value: "claude", label: "Claude" },
 ];
 
+function SkeletonMessage() {
+  return (
+    <div className="animate-fade-in py-1.5">
+      <div className="space-y-2">
+        <div className="skeleton h-4 w-3/4" />
+        <div className="skeleton h-4 w-full" />
+        <div className="skeleton h-4 w-5/6" />
+        <div className="skeleton h-4 w-2/3" />
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="skeleton h-3 w-16" />
+        <div className="skeleton h-3 w-12" />
+      </div>
+    </div>
+  );
+}
+
 function ChatWorkspace() {
   const { showAlert } = useAlerts();
   const { token, user, isAuthenticated, loading: authLoading } = useAuth();
@@ -75,8 +92,14 @@ function ChatWorkspace() {
   const [storeEnabled, setStoreEnabled] = useState<boolean>(true);
   const [preferredModel, setPreferredModelState] = useState<ModelName>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);
 
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+
+  const selectedFolder = useMemo(
+    () => folders.find((f) => f.id === selectedFolderId),
+    [folders, selectedFolderId]
+  );
 
   const loadChats = useCallback(
     async (folderId: string | null) => {
@@ -178,6 +201,7 @@ function ChatWorkspace() {
   const selectChat = async (chatId: string) => {
     if (!token) return;
 
+    setLoadingChat(true);
     try {
       const data = await apiRequest<{ ok: boolean; chat: ChatThread }>(`/api/chats/${chatId}`, { token });
       setCurrentChatId(chatId);
@@ -192,6 +216,8 @@ function ChatWorkspace() {
       setMessages(mapped.length ? mapped : [welcomeMessage]);
     } catch (error) {
       showAlert(error instanceof Error ? error.message : "Failed to open chat");
+    } finally {
+      setLoadingChat(false);
     }
   };
 
@@ -283,7 +309,7 @@ function ChatWorkspace() {
         content: response.response,
         modelUsed: response.model_selected,
         detail: `${response.domain || "general"}${fallback}`,
-        animateTypewriter: false,
+        animateTypewriter: true,
       };
 
       setMessages((prev) => {
@@ -311,7 +337,7 @@ function ChatWorkspace() {
 
   return (
     <>
-      <div className="mx-auto flex h-[calc(100dvh-49px)] w-full max-w-6xl gap-0 lg:gap-0">
+      <div className="flex h-[calc(100dvh-49px)] w-full gap-0">
         {/* Desktop sidebar */}
         <div className="hidden w-[260px] shrink-0 border-r border-[var(--border)] lg:block">
           <ChatSidebar
@@ -336,9 +362,9 @@ function ChatWorkspace() {
 
         {/* Main chat area */}
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Chat header */}
+          {/* Chat header with breadcrumb */}
           <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
                 onClick={() => setMobileSidebarOpen(true)}
@@ -346,9 +372,51 @@ function ChatWorkspace() {
               >
                 <PanelLeft size={16} />
               </button>
-              <span className="truncate text-sm font-medium text-[var(--text-primary)]">
-                {currentChatId ? currentChatTitle || "Conversation" : "New Chat"}
-              </span>
+
+              {/* Breadcrumb */}
+              <nav className="flex items-center gap-1 text-sm min-w-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFolderId(null);
+                    startNewChat();
+                  }}
+                  className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  <Home size={13} />
+                  <span className="hidden sm:inline">Chats</span>
+                </button>
+
+                {selectedFolder && (
+                  <>
+                    <ChevronRight size={12} className="text-[var(--text-soft)]" />
+                    <button
+                      type="button"
+                      onClick={() => startNewChat()}
+                      className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                    >
+                      <FolderOpen size={12} />
+                      <span className="max-w-[100px] truncate">{selectedFolder.name}</span>
+                    </button>
+                  </>
+                )}
+
+                {currentChatId && (
+                  <>
+                    <ChevronRight size={12} className="text-[var(--text-soft)]" />
+                    <span className="truncate font-medium text-[var(--text-primary)] max-w-[200px]">
+                      {currentChatTitle || "Conversation"}
+                    </span>
+                  </>
+                )}
+
+                {!currentChatId && !selectedFolder && (
+                  <>
+                    <ChevronRight size={12} className="text-[var(--text-soft)]" />
+                    <span className="font-medium text-[var(--text-primary)]">New Chat</span>
+                  </>
+                )}
+              </nav>
             </div>
 
             <div className="flex items-center gap-2">
@@ -386,19 +454,27 @@ function ChatWorkspace() {
 
           {/* Messages */}
           <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="mx-auto flex max-w-3xl flex-col gap-1 px-4 py-4">
-              {messages.map((item) => (
-                <MessageBubble
-                  key={item.id}
-                  role={item.role}
-                  content={item.content}
-                  modelUsed={item.modelUsed}
-                  detail={item.detail}
-                  loading={item.loading}
-                  loadingNode={<LoaderDots />}
-                  animateTypewriter={item.animateTypewriter}
-                />
-              ))}
+            <div className="mx-auto flex max-w-4xl flex-col gap-1 px-4 py-4">
+              {loadingChat ? (
+                <>
+                  <SkeletonMessage />
+                  <SkeletonMessage />
+                  <SkeletonMessage />
+                </>
+              ) : (
+                messages.map((item) => (
+                  <MessageBubble
+                    key={item.id}
+                    role={item.role}
+                    content={item.content}
+                    modelUsed={item.modelUsed}
+                    detail={item.detail}
+                    loading={item.loading}
+                    loadingNode={<LoaderDots />}
+                    animateTypewriter={item.animateTypewriter}
+                  />
+                ))
+              )}
               <div ref={messageEndRef} />
             </div>
           </div>

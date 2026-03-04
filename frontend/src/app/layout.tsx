@@ -41,7 +41,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 
       {!isChatPage && (
         <footer className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3">
-          <div className="mx-auto flex max-w-5xl items-center justify-center gap-4 text-xs text-[var(--text-soft)]">
+          <div className="mx-auto flex items-center justify-center gap-4 text-xs text-[var(--text-soft)]">
             <span>&copy; {new Date().getFullYear()} Swastik AI</span>
             <span className="text-[var(--border)]">&middot;</span>
             <a href="#" className="hover:text-[var(--text-primary)] transition-colors">Terms</a>

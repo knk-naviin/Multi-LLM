@@ -9,7 +9,7 @@ export function AlertStack() {
 
   return (
     <div
-      className="pointer-events-none fixed right-4 top-16 z-[120] flex w-full max-w-[340px] flex-col gap-2"
+      className="pointer-events-none fixed right-4 top-16 z-[120] flex w-full max-w-[360px] flex-col gap-2"
       aria-live="polite"
     >
       {alerts.map((item) => (
@@ -24,22 +24,25 @@ function AlertItem({ item, onRemove }: { item: AlertItemType; onRemove: (id: str
     error: {
       icon: <AlertCircle className="h-4 w-4 text-red-500" />,
       border: "border-red-500/20",
+      bg: "bg-red-500/5",
     },
     success: {
       icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
       border: "border-emerald-500/20",
+      bg: "bg-emerald-500/5",
     },
     info: {
       icon: <Info className="h-4 w-4 text-[var(--brand)]" />,
       border: "border-[var(--brand)]/20",
+      bg: "",
     },
   };
 
-  const { icon, border } = config[item.type as keyof typeof config] || config.info;
+  const { icon, border, bg } = config[item.type as keyof typeof config] || config.info;
 
   return (
     <div
-      className={`pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-[var(--surface-elevated)] p-3 shadow-md ${border}`}
+      className={`alert-enter pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-[var(--surface-elevated)] p-3 shadow-md ${border} ${bg}`}
     >
       <div className="mt-0.5 shrink-0">{icon}</div>
       <p className="flex-1 text-sm text-[var(--text-primary)]">{item.message}</p>
