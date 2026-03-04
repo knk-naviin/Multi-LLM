@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Moon, Settings, Sun, UserCircle2, X, LogOut, Info, MessageSquare, User } from "lucide-react";
+import { Menu, Moon, Settings, Sun, LogOut, Info, MessageSquare, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { APP_NAME, COMPANY_NAME } from "@/lib/constants";
+import { APP_NAME } from "@/lib/constants";
 
 const navItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
@@ -28,11 +28,7 @@ export function Navbar() {
 
   useEffect(() => {
     const closeOnOutside = (event: MouseEvent) => {
-      if (!profileRef.current) {
-        return;
-      }
-
-      if (!profileRef.current.contains(event.target as Node)) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setProfileOpen(false);
       }
     };
@@ -47,61 +43,58 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-[var(--stroke)] bg-[var(--background)]/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-[1540px] items-center justify-between px-3 sm:px-4 lg:px-6">
-          <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-50 w-full border-b border-[var(--border)] bg-[var(--nav-bg)] backdrop-blur-md">
+        <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-4">
+          {/* Left */}
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={isChatPage ? openWorkspaceSidebar : () => setMobileNavOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--stroke)] bg-[var(--surface)] text-[var(--text-main)] md:hidden"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-alt)] hover:text-[var(--text-primary)] md:hidden"
               aria-label="Open navigation"
             >
               <Menu size={18} />
             </button>
 
-            <Link href="/chat" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20">
-                <span className="text-lg font-black tracking-tighter">S</span>
+            <Link href="/chat" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--brand)] text-white">
+                <span className="text-xs font-bold">S</span>
               </div>
-              <div className="hidden flex-col sm:flex">
-                <span className="text-sm font-bold tracking-tight text-[var(--text-main)]">{APP_NAME}</span>
-                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-soft)] opacity-70">
-                  {COMPANY_NAME}
-                </span>
-              </div>
+              <span className="hidden text-sm font-semibold text-[var(--text-primary)] sm:block">{APP_NAME}</span>
             </Link>
           </div>
 
-          <nav className="hidden items-center gap-1 md:flex">
+          {/* Center */}
+          <nav className="hidden items-center gap-0.5 md:flex">
             {navItems.map((item) => {
               const active = pathname === item.href;
               const Icon = item.icon;
-
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition ${
                     active
-                      ? "bg-[var(--surface-alt)] text-[var(--text-main)]"
-                      : "text-[var(--text-soft)] hover:bg-[var(--surface-alt)] hover:text-[var(--text-main)]"
+                      ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                   }`}
                 >
-                  <Icon size={16} className={active ? "text-indigo-500" : "opacity-70"} />
+                  <Icon size={14} />
                   {item.label}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3" ref={profileRef}>
+          {/* Right */}
+          <div className="flex items-center gap-1.5" ref={profileRef}>
             <button
               type="button"
               onClick={toggleTheme}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--stroke)] bg-[var(--surface)] text-[var(--text-soft)] transition hover:bg-[var(--surface-alt)] hover:text-[var(--text-main)]"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition hover:bg-[var(--surface-alt)] hover:text-[var(--text-primary)]"
               title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </button>
 
             {isAuthenticated ? (
@@ -109,25 +102,27 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={() => setProfileOpen((prev) => !prev)}
-                  className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--stroke)] bg-[var(--surface)] px-2.5 text-[var(--text-main)] transition hover:border-indigo-500/50"
+                  className="flex h-8 items-center gap-2 rounded-lg px-1.5 text-[var(--text-primary)] transition hover:bg-[var(--surface-alt)]"
                   aria-label="Account menu"
                 >
-                  <UserCircle2 size={17} />
-                  <span className="hidden max-w-[120px] truncate text-xs font-semibold sm:inline">{user?.name}</span>
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--brand)] text-[10px] font-bold text-white">
+                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                  </div>
+                  <span className="hidden max-w-[100px] truncate text-xs font-medium sm:inline">{user?.name}</span>
                 </button>
 
-                {profileOpen ? (
-                  <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-[var(--stroke)] bg-[var(--surface)] p-1 shadow-xl">
-                    <div className="px-3 py-2">
-                      <p className="truncate text-sm font-semibold text-[var(--text-main)]">{user?.name}</p>
+                {profileOpen && (
+                  <div className="absolute right-0 mt-1 w-44 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] shadow-lg">
+                    <div className="border-b border-[var(--border)] px-3 py-2">
+                      <p className="truncate text-sm font-medium text-[var(--text-primary)]">{user?.name}</p>
                       <p className="truncate text-xs text-[var(--text-soft)]">{user?.email}</p>
                     </div>
                     <Link
                       href="/settings"
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-main)] hover:bg-[var(--surface-alt)]"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-alt)]"
                       onClick={() => setProfileOpen(false)}
                     >
-                      <Settings size={15} />
+                      <Settings size={14} />
                       Settings
                     </Link>
                     <button
@@ -136,46 +131,47 @@ export function Navbar() {
                         setProfileOpen(false);
                         signOut().catch(() => null);
                       }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-500 hover:bg-red-500/10"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-500 hover:bg-red-500/5"
                     >
-                      <LogOut size={15} />
+                      <LogOut size={14} />
                       Sign Out
                     </button>
                   </div>
-                ) : null}
+                )}
               </div>
             ) : (
               <Link
                 href="/chat?auth=1"
-                className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition hover:opacity-95 sm:px-4 sm:text-sm"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--brand-hover)]"
               >
                 <User size={14} />
-                <span>Sign In</span>
+                Sign In
               </Link>
             )}
           </div>
         </div>
       </header>
 
+      {/* Mobile nav drawer */}
       <div
         className={`fixed inset-0 z-[80] md:hidden ${mobileNavOpen ? "pointer-events-auto" : "pointer-events-none"}`}
         aria-hidden={!mobileNavOpen}
       >
         <div
-          className={`absolute inset-0 bg-black/45 transition-opacity ${mobileNavOpen ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 bg-black/40 transition-opacity ${mobileNavOpen ? "opacity-100" : "opacity-0"}`}
           onClick={() => setMobileNavOpen(false)}
         />
         <div
-          className={`absolute left-0 top-0 h-full w-[84%] max-w-[320px] border-r border-[var(--stroke)] bg-[var(--surface)] p-4 shadow-2xl transition-transform ${
+          className={`absolute left-0 top-0 h-full w-[280px] border-r border-[var(--border)] bg-[var(--background)] p-4 shadow-lg transition-transform ${
             mobileNavOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm font-bold text-[var(--text-main)]">Menu</p>
+          <div className="mb-6 flex items-center justify-between">
+            <span className="text-sm font-semibold text-[var(--text-primary)]">{APP_NAME}</span>
             <button
               type="button"
               onClick={() => setMobileNavOpen(false)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-[var(--surface-alt)] text-[var(--text-main)]"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
             >
               <X size={16} />
             </button>
@@ -189,10 +185,10 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
                     active
-                      ? "bg-[var(--surface-alt)] font-semibold text-[var(--text-main)]"
-                      : "text-[var(--text-soft)] hover:bg-[var(--surface-alt)] hover:text-[var(--text-main)]"
+                      ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)] hover:text-[var(--text-primary)]"
                   }`}
                   onClick={() => setMobileNavOpen(false)}
                 >

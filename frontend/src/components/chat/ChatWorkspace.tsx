@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, PanelLeft } from "lucide-react";
+import { PanelLeft, Plus, ChevronDown } from "lucide-react";
 
 import { AuthModal } from "@/components/auth/AuthModal";
 import { ChatComposer } from "@/components/chat/ChatComposer";
@@ -25,28 +25,10 @@ import type {
 const welcomeMessage: UiMessage = {
   id: "welcome-assistant",
   role: "assistant",
-  content: `## Welcome to ${APP_NAME}\n\nGuest mode is active. Sign in to unlock folders, persistent chat history, and workspace settings.`,
+  content: `Welcome to **${APP_NAME}**. Ask me anything — I'll route your question to the best model automatically.`,
   modelUsed: "benchmarkModel",
-  detail: `SaaS workspace · ${CLIENT_ROUTER_KEY}`,
+  detail: `${CLIENT_ROUTER_KEY}`,
 };
-
-function shouldAnimateTypewriter(text: string): boolean {
-  const compact = text.trim();
-  if (!compact || compact.includes("\n")) {
-    return false;
-  }
-
-  if (/(\*\*|__|`|^\#{1,6}\s|\[[^\]]+\]\([^)]+\))/m.test(compact)) {
-    return false;
-  }
-
-  if (compact.length > 220) {
-    return false;
-  }
-
-  const sentenceEnders = (compact.match(/[.!?]/g) || []).length;
-  return sentenceEnders <= 1;
-}
 
 function messageFromThread(message: ChatThread["messages"][number], index: number): UiMessage {
   return {
@@ -54,20 +36,25 @@ function messageFromThread(message: ChatThread["messages"][number], index: numbe
     role: message.role,
     content: message.content,
     modelUsed: message.model_used,
-    detail: message.role === "assistant" ? "Stored message" : undefined,
+    detail: message.role === "assistant" ? "Stored" : undefined,
     animateTypewriter: false,
   };
 }
 
 function safeTitle(text: string): string {
   const compact = text.trim().replace(/\s+/g, " ");
-  if (!compact) {
-    return "Conversation";
-  }
+  if (!compact) return "Conversation";
   return compact.length > 60 ? `${compact.slice(0, 60)}...` : compact;
 }
 
 type SidebarEvent = CustomEvent<{ open?: boolean }>;
+
+const MODEL_OPTIONS: { value: ModelName | "auto"; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "gpt", label: "GPT" },
+  { value: "gemini", label: "Gemini" },
+  { value: "claude", label: "Claude" },
+];
 
 function ChatWorkspace() {
   const { showAlert } = useAlerts();
@@ -102,9 +89,7 @@ function ChatWorkspace() {
       const data = await apiRequest<{ ok: boolean; chats: ChatSummary[] }>(query, { token });
       setChats(data.chats || []);
       setCurrentChatTitle((prev) => {
-        if (!currentChatId) {
-          return prev;
-        }
+        if (!currentChatId) return prev;
         const match = data.chats?.find((chat) => chat.id === currentChatId);
         return match?.title || prev;
       });
@@ -141,11 +126,8 @@ function ChatWorkspace() {
 
   useEffect(() => {
     const onResize = () => {
-      if (window.innerWidth >= 1024) {
-        setMobileSidebarOpen(false);
-      }
+      if (window.innerWidth >= 1024) setMobileSidebarOpen(false);
     };
-
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -193,31 +175,8 @@ function ChatWorkspace() {
     });
   }, [loadChats, selectedFolderId, showAlert]);
 
-  const selectedFolder = useMemo(
-    () => folders.find((folder) => folder.id === selectedFolderId) || null,
-    [folders, selectedFolderId]
-  );
-
-  const activeChatSummary = useMemo(
-    () => chats.find((chat) => chat.id === currentChatId) || null,
-    [chats, currentChatId]
-  );
-
-  const activeFolderFromChat = useMemo(() => {
-    const chatFolderId = activeChatSummary?.folder_id || activeChatSummary?.project_id;
-    if (!chatFolderId) {
-      return null;
-    }
-    return folders.find((folder) => folder.id === chatFolderId) || null;
-  }, [activeChatSummary, folders]);
-
-  const breadcrumbFolder = selectedFolder || activeFolderFromChat;
-  const breadcrumbChatTitle = currentChatTitle || activeChatSummary?.title || null;
-
   const selectChat = async (chatId: string) => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     try {
       const data = await apiRequest<{ ok: boolean; chat: ChatThread }>(`/api/chats/${chatId}`, { token });
@@ -273,14 +232,10 @@ function ChatWorkspace() {
   };
 
   const sendPrompt = async () => {
-    if (sending) {
-      return;
-    }
+    if (sending) return;
 
     const text = prompt.trim();
-    if (!text) {
-      return;
-    }
+    if (!text) return;
 
     setSending(true);
     setPrompt("");
@@ -297,7 +252,7 @@ function ChatWorkspace() {
       role: "assistant",
       content: "",
       loading: true,
-      detail: "benchmarkModel selecting best model",
+      detail: "Selecting best model...",
     };
 
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
@@ -319,7 +274,7 @@ function ChatWorkspace() {
 
       const fallback =
         response.fallback_errors && response.fallback_errors.length
-          ? ` · Fallback: ${response.fallback_errors[0]}`
+          ? ` | Fallback: ${response.fallback_errors[0]}`
           : "";
 
       const assistantMessage: UiMessage = {
@@ -327,8 +282,8 @@ function ChatWorkspace() {
         role: "assistant",
         content: response.response,
         modelUsed: response.model_selected,
-        detail: `Domain: ${response.domain || "general"} · Selector: ${response.selector}${fallback}`,
-        animateTypewriter: shouldAnimateTypewriter(response.response),
+        detail: `${response.domain || "general"}${fallback}`,
+        animateTypewriter: false,
       };
 
       setMessages((prev) => {
@@ -352,10 +307,13 @@ function ChatWorkspace() {
     }
   };
 
+  const modelDisplayValue = preferredModel || "auto";
+
   return (
     <>
-      <div className="mx-auto mt-3 grid h-[calc(100dvh-150px)] min-h-0 w-full max-w-[1540px] grid-cols-1 gap-4 px-3 pb-4 lg:h-[calc(100dvh-140px)] lg:grid-cols-[320px_minmax(0,1fr)] lg:px-4">
-        <div className="hidden h-full min-h-0 lg:block">
+      <div className="mx-auto flex h-[calc(100dvh-49px)] w-full max-w-6xl gap-0 lg:gap-0">
+        {/* Desktop sidebar */}
+        <div className="hidden w-[260px] shrink-0 border-r border-[var(--border)] lg:block">
           <ChatSidebar
             user={user}
             loadingAuth={authLoading}
@@ -376,79 +334,81 @@ function ChatWorkspace() {
           />
         </div>
 
-        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] shadow-sm">
-          <header className="shrink-0 border-b border-[var(--stroke)] p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h1 className="text-lg font-semibold text-[var(--text-main)] sm:text-xl">
-                  {currentChatId ? currentChatTitle || "Conversation" : "New Chat"}
-                </h1>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={startNewChat}
-                  className="rounded-lg border border-[var(--stroke)] px-3 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--surface-alt)]"
-                >
-                  New Chat
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileSidebarOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--stroke)] bg-[var(--surface-alt)] px-3 py-1.5 text-xs font-semibold text-[var(--text-main)] lg:hidden"
-                >
-                  <PanelLeft size={14} />
-                  Menu
-                </button>
-              </div>
+        {/* Main chat area */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Chat header */}
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-alt)] lg:hidden"
+              >
+                <PanelLeft size={16} />
+              </button>
+              <span className="truncate text-sm font-medium text-[var(--text-primary)]">
+                {currentChatId ? currentChatTitle || "Conversation" : "New Chat"}
+              </span>
             </div>
 
-            {breadcrumbFolder || breadcrumbChatTitle ? (
-              <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-[var(--text-soft)]">
-                <span>Workspace</span>
-                {breadcrumbFolder ? (
-                  <>
-                    <ChevronRight size={12} />
-                    <span className="rounded bg-[var(--surface-alt)] px-2 py-0.5 text-[var(--text-main)]">
-                      {breadcrumbFolder.name}
-                    </span>
-                  </>
-                ) : null}
-                {breadcrumbChatTitle ? (
-                  <>
-                    <ChevronRight size={12} />
-                    <span className="rounded bg-[var(--surface-alt)] px-2 py-0.5 text-[var(--text-main)]">
-                      {breadcrumbChatTitle}
-                    </span>
-                  </>
-                ) : null}
+            <div className="flex items-center gap-2">
+              {/* Model selector */}
+              <div className="relative">
+                <select
+                  value={modelDisplayValue}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const model = val === "auto" ? null : (val as Exclude<ModelName, null>);
+                    setPreferredModelState(model);
+                    setPreferredModel(model);
+                  }}
+                  className="h-7 appearance-none rounded-md border border-[var(--border)] bg-[var(--surface)] pl-2 pr-6 text-xs text-[var(--text-secondary)] outline-none hover:border-[var(--text-soft)]"
+                >
+                  {MODEL_OPTIONS.map((opt) => (
+                    <option key={opt.value ?? "auto"} value={opt.value ?? "auto"}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--text-soft)]" />
               </div>
-            ) : null}
-          </header>
 
-          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
-            <div className="flex min-h-full flex-col gap-3">
-            {messages.map((item) => (
-              <MessageBubble
-                key={item.id}
-                role={item.role}
-                content={item.content}
-                modelUsed={item.modelUsed}
-                detail={item.detail}
-                loading={item.loading}
-                loadingNode={<LoaderDots label={`${APP_NAME} is typing a thoughtful answer`} />}
-                animateTypewriter={item.animateTypewriter}
-              />
-            ))}
-            <div ref={messageEndRef} />
+              <button
+                type="button"
+                onClick={startNewChat}
+                className="flex h-7 items-center gap-1 rounded-md border border-[var(--border)] px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-alt)]"
+              >
+                <Plus size={14} />
+                <span className="hidden sm:inline">New</span>
+              </button>
             </div>
           </div>
 
+          {/* Messages */}
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="mx-auto flex max-w-3xl flex-col gap-1 px-4 py-4">
+              {messages.map((item) => (
+                <MessageBubble
+                  key={item.id}
+                  role={item.role}
+                  content={item.content}
+                  modelUsed={item.modelUsed}
+                  detail={item.detail}
+                  loading={item.loading}
+                  loadingNode={<LoaderDots />}
+                  animateTypewriter={item.animateTypewriter}
+                />
+              ))}
+              <div ref={messageEndRef} />
+            </div>
+          </div>
+
+          {/* Composer */}
           <ChatComposer value={prompt} onChange={setPrompt} onSend={sendPrompt} disabled={sending} />
-        </section>
+        </div>
       </div>
 
+      {/* Mobile sidebar overlay */}
       <div
         className={`fixed inset-0 z-[90] lg:hidden ${
           mobileSidebarOpen ? "pointer-events-auto" : "pointer-events-none"
@@ -456,14 +416,14 @@ function ChatWorkspace() {
         aria-hidden={!mobileSidebarOpen}
       >
         <div
-          className={`absolute inset-0 bg-black/40 backdrop-blur-[1px] transition-opacity ${
+          className={`absolute inset-0 bg-black/40 transition-opacity ${
             mobileSidebarOpen ? "opacity-100" : "opacity-0"
           }`}
           onClick={() => setMobileSidebarOpen(false)}
         />
 
         <div
-          className={`absolute left-0 top-0 h-full w-[88%] max-w-[360px] p-3 transition-transform duration-200 ${
+          className={`absolute left-0 top-0 h-full w-[280px] border-r border-[var(--border)] bg-[var(--background)] transition-transform duration-200 ${
             mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >

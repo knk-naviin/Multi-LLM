@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderOpen, LogIn, MessageSquarePlus } from "lucide-react";
+import { FolderOpen, LogIn, Plus, MessageSquare } from "lucide-react";
 
 import type { ChatSummary, Folder, User } from "@/lib/types";
 
@@ -41,79 +41,54 @@ export function ChatSidebar({
   onNavigate,
 }: ChatSidebarProps) {
   return (
-    <aside className="grid h-full gap-3 overflow-hidden rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] p-3">
-      {showNavLinks ? (
-        <section className="rounded-xl border border-[var(--stroke)] bg-[var(--surface-alt)]/60 p-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-soft)]">Navigation</p>
-          <div className="grid gap-1 text-sm">
-            <Link
-              href="/chat"
-              className="rounded-lg px-2.5 py-2 text-[var(--text-main)] hover:bg-[var(--surface)]"
-              onClick={onNavigate}
-            >
-              Chat
-            </Link>
-            <Link
-              href="/about"
-              className="rounded-lg px-2.5 py-2 text-[var(--text-main)] hover:bg-[var(--surface)]"
-              onClick={onNavigate}
-            >
-              About
-            </Link>
-            <Link
-              href="/settings"
-              className="rounded-lg px-2.5 py-2 text-[var(--text-main)] hover:bg-[var(--surface)]"
-              onClick={onNavigate}
-            >
-              Settings
-            </Link>
-          </div>
-        </section>
-      ) : null}
+    <aside className="flex h-full flex-col overflow-hidden bg-[var(--surface)] p-3">
+      {/* New Chat button */}
+      <button
+        type="button"
+        onClick={() => { onStartNewChat(); onNavigate?.(); }}
+        className="mb-3 flex w-full items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--surface-alt)]"
+      >
+        <Plus size={14} />
+        New Chat
+      </button>
 
-      <section className="rounded-xl border border-[var(--stroke)] bg-[var(--surface-alt)]/60 p-3">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-soft)]">Account</p>
-        {loadingAuth ? <p className="text-xs text-[var(--text-soft)]">Checking session...</p> : null}
-
-        {user ? (
-          <div>
-            <h3 className="text-base font-bold text-[var(--text-main)]">{user.name}</h3>
-            <p className="text-xs text-[var(--text-soft)]">{user.email}</p>
-          </div>
-        ) : (
-          <div className="grid gap-2">
-            <h3 className="text-base font-bold text-[var(--text-main)]">Guest Mode</h3>
-            <p className="text-xs text-[var(--text-soft)]">Sign in to store chats inside folders.</p>
-            <button
-              type="button"
-              onClick={onOpenAuth}
-              className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-3 py-2 text-xs font-semibold text-white"
-            >
-              <LogIn size={14} />
-              Sign In
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-[var(--stroke)] bg-[var(--surface-alt)]/60 p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-soft)]">Folders</p>
-          <button
-            type="button"
-            onClick={onStartNewChat}
-            className="inline-flex items-center gap-1 rounded-md border border-[var(--stroke)] bg-[var(--surface)] px-2 py-1 text-[11px] font-semibold text-[var(--text-main)]"
+      {showNavLinks && (
+        <div className="mb-3 grid gap-0.5">
+          <Link
+            href="/chat"
+            className="rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-alt)]"
+            onClick={onNavigate}
           >
-            <MessageSquarePlus size={12} />
-            New
-          </button>
+            Chat
+          </Link>
+          <Link
+            href="/about"
+            className="rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-alt)]"
+            onClick={onNavigate}
+          >
+            About
+          </Link>
+          <Link
+            href="/settings"
+            className="rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-alt)]"
+            onClick={onNavigate}
+          >
+            Settings
+          </Link>
+        </div>
+      )}
+
+      {/* Folders */}
+      <div className="mb-1">
+        <div className="mb-1.5 flex items-center justify-between px-1">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">Folders</span>
         </div>
 
-        <div className="mb-2 flex gap-2">
+        <div className="mb-2 flex gap-1.5">
           <input
-            className="w-full rounded-lg border border-[var(--stroke)] bg-[var(--surface)] px-2.5 py-2 text-sm text-[var(--text-main)] outline-none"
+            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-soft)] focus:border-[var(--text-soft)]"
             value={folderName}
-            placeholder="New folder"
+            placeholder="New folder..."
             onChange={(event) => onFolderNameChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -125,84 +100,111 @@ export function ChatSidebar({
           <button
             type="button"
             onClick={onCreateFolder}
-            className="rounded-full bg-indigo-600 px-3 py-2 text-xs font-semibold text-white"
+            className="rounded-md bg-[var(--brand)] px-2 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand-hover)]"
           >
             Add
           </button>
         </div>
 
-        <div className="grid max-h-[170px] gap-1 overflow-auto custom-scrollbar">
+        <div className="custom-scrollbar grid max-h-[140px] gap-0.5 overflow-y-auto">
           <button
             type="button"
-            onClick={() => {
-              onSelectFolder(null);
-              onNavigate?.();
-            }}
-            className={`rounded-lg border px-2.5 py-2 text-left text-sm ${
+            onClick={() => { onSelectFolder(null); onNavigate?.(); }}
+            className={`rounded-md px-2 py-1.5 text-left text-xs transition ${
               selectedFolderId === null
-                ? "border-[var(--stroke)] bg-[var(--surface)] text-[var(--text-main)]"
-                : "border-transparent text-[var(--text-soft)] hover:border-[var(--stroke)]"
+                ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
             }`}
           >
-            All Folders
+            All Chats
           </button>
 
           {folders.map((folder) => (
             <button
               key={folder.id}
               type="button"
-              onClick={() => {
-                onSelectFolder(folder.id);
-                onNavigate?.();
-              }}
+              onClick={() => { onSelectFolder(folder.id); onNavigate?.(); }}
               title={folder.description}
-              className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm ${
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition ${
                 selectedFolderId === folder.id
-                  ? "border-[var(--stroke)] bg-[var(--surface)] text-[var(--text-main)]"
-                  : "border-transparent text-[var(--text-soft)] hover:border-[var(--stroke)]"
+                  ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
               }`}
             >
-              <FolderOpen size={14} />
+              <FolderOpen size={12} />
               <span className="truncate">{folder.name}</span>
             </button>
           ))}
 
-          {!folders.length ? <p className="text-xs text-[var(--text-soft)]">No folders yet.</p> : null}
+          {!folders.length && (
+            <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">No folders yet.</p>
+          )}
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-xl border border-[var(--stroke)] bg-[var(--surface-alt)]/60 p-3">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-soft)]">Recent Chats</p>
+      {/* Recent Chats */}
+      <div className="mb-1 mt-2 px-1">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">Recent</span>
+      </div>
 
-        <div className="grid max-h-[32vh] gap-1 overflow-auto custom-scrollbar">
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+        <div className="grid gap-0.5">
           {chats.map((chat) => (
             <button
               key={chat.id}
               type="button"
-              onClick={() => {
-                onSelectChat(chat.id);
-                onNavigate?.();
-              }}
-              className={`grid gap-0.5 rounded-lg border px-2.5 py-2 text-left ${
+              onClick={() => { onSelectChat(chat.id); onNavigate?.(); }}
+              className={`grid gap-0.5 rounded-md px-2 py-1.5 text-left transition ${
                 currentChatId === chat.id
-                  ? "border-[var(--stroke)] bg-[var(--surface)]"
-                  : "border-transparent hover:border-[var(--stroke)]"
+                  ? "bg-[var(--surface-alt)]"
+                  : "hover:bg-[var(--surface-alt)]"
               }`}
             >
-              <span className="truncate text-sm font-semibold text-[var(--text-main)]">{chat.title || "Untitled"}</span>
-              <span className="truncate text-[11px] text-[var(--text-soft)]">
-                {chat.last_model || "-"} · {chat.last_message || "..."}
+              <span className="flex items-center gap-1.5">
+                <MessageSquare size={11} className="shrink-0 text-[var(--text-soft)]" />
+                <span className="truncate text-xs font-medium text-[var(--text-primary)]">
+                  {chat.title || "Untitled"}
+                </span>
+              </span>
+              <span className="truncate pl-[18px] text-[10px] text-[var(--text-soft)]">
+                {chat.last_model || ""} {chat.last_message ? `· ${chat.last_message}` : ""}
               </span>
             </button>
           ))}
 
-          {!chats.length ? (
-            <p className="text-xs text-[var(--text-soft)]">
+          {!chats.length && (
+            <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
               {user ? "No saved chats yet." : "Sign in to store chats."}
             </p>
-          ) : null}
+          )}
         </div>
-      </section>
+      </div>
+
+      {/* Account section at bottom */}
+      <div className="mt-auto shrink-0 border-t border-[var(--border)] pt-3">
+        {loadingAuth ? (
+          <p className="text-xs text-[var(--text-soft)]">Checking session...</p>
+        ) : user ? (
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-[10px] font-bold text-white">
+              {user.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-[var(--text-primary)]">{user.name}</p>
+              <p className="truncate text-[10px] text-[var(--text-soft)]">{user.email}</p>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenAuth}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-2 text-xs font-medium text-white hover:bg-[var(--brand-hover)]"
+          >
+            <LogIn size={14} />
+            Sign In
+          </button>
+        )}
+      </div>
     </aside>
   );
 }

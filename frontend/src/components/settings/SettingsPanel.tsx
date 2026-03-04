@@ -53,11 +53,11 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (next: bool
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-indigo-600" : "bg-slate-300"}`}
+      className={`relative h-5 w-9 rounded-full transition ${checked ? "bg-[var(--brand)]" : "bg-[var(--surface-hover)]"}`}
     >
       <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-          checked ? "left-[22px]" : "left-0.5"
+        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition ${
+          checked ? "left-[18px]" : "left-0.5"
         }`}
       />
     </button>
@@ -76,9 +76,9 @@ function ToggleRow({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[var(--stroke)] py-3 last:border-b-0">
+    <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] py-2.5 last:border-b-0">
       <div>
-        <p className="text-sm font-medium text-[var(--text-main)]">{label}</p>
+        <p className="text-sm text-[var(--text-primary)]">{label}</p>
         <p className="text-xs text-[var(--text-soft)]">{description}</p>
       </div>
       <Toggle checked={checked} onChange={onChange} />
@@ -87,13 +87,9 @@ function ToggleRow({
 }
 
 function toReadableDate(value?: string | null): string {
-  if (!value) {
-    return "-";
-  }
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString();
 }
 
@@ -175,27 +171,16 @@ export function SettingsPanel() {
   };
 
   const refreshSessions = async () => {
-    if (!token) {
-      return;
-    }
-
-    const sessionRes = await apiRequest<{ ok: boolean; sessions: AuthSession[] }>("/api/auth/sessions", {
-      token,
-    });
+    if (!token) return;
+    const sessionRes = await apiRequest<{ ok: boolean; sessions: AuthSession[] }>("/api/auth/sessions", { token });
     setSessions(sessionRes.sessions || []);
   };
 
   const revokeSession = async (sessionId: string) => {
-    if (!token) {
-      return;
-    }
-
+    if (!token) return;
     setBusyAction(`revoke-${sessionId}`);
     try {
-      await apiRequest<{ ok: boolean }>(`/api/auth/sessions/${sessionId}`, {
-        method: "DELETE",
-        token,
-      });
+      await apiRequest<{ ok: boolean }>(`/api/auth/sessions/${sessionId}`, { method: "DELETE", token });
       await refreshSessions();
       showAlert("Session revoked.", "success");
     } catch (error) {
@@ -206,16 +191,10 @@ export function SettingsPanel() {
   };
 
   const logoutAll = async () => {
-    if (!token) {
-      return;
-    }
-
+    if (!token) return;
     setBusyAction("logout-all");
     try {
-      await apiRequest<{ ok: boolean; revoked_sessions: number }>("/api/auth/logout-all", {
-        method: "POST",
-        token,
-      });
+      await apiRequest<{ ok: boolean; revoked_sessions: number }>("/api/auth/logout-all", { method: "POST", token });
       await refreshSessions();
       showAlert("Logged out from other devices.", "success");
     } catch (error) {
@@ -226,16 +205,10 @@ export function SettingsPanel() {
   };
 
   const clearChats = async () => {
-    if (!token) {
-      return;
-    }
-
+    if (!token) return;
     setBusyAction("clear-chats");
     try {
-      await apiRequest<{ ok: boolean; deleted_chats: number }>("/api/chats", {
-        method: "DELETE",
-        token,
-      });
+      await apiRequest<{ ok: boolean; deleted_chats: number }>("/api/chats", { method: "DELETE", token });
       showAlert("All chats cleared.", "success");
     } catch (error) {
       showAlert(error instanceof Error ? error.message : "Failed to clear chats");
@@ -245,17 +218,13 @@ export function SettingsPanel() {
   };
 
   const exportChats = async () => {
-    if (!token) {
-      return;
-    }
-
+    if (!token) return;
     setBusyAction("export");
     try {
       const payload = await apiRequest<{ ok: boolean; exported_at: string; chats: unknown[] }>(
         "/api/chats/export",
         { token }
       );
-
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const href = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -263,7 +232,6 @@ export function SettingsPanel() {
       anchor.download = `swastik-chat-export-${Date.now()}.json`;
       anchor.click();
       URL.revokeObjectURL(href);
-
       showAlert("Chat export downloaded.", "success");
     } catch (error) {
       showAlert(error instanceof Error ? error.message : "Failed to export chats");
@@ -273,23 +241,12 @@ export function SettingsPanel() {
   };
 
   const deleteAccount = async () => {
-    if (!token) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "This will permanently delete your account and all data. Continue?"
-    );
-    if (!confirmed) {
-      return;
-    }
-
+    if (!token) return;
+    const confirmed = window.confirm("This will permanently delete your account and all data. Continue?");
+    if (!confirmed) return;
     setBusyAction("delete-account");
     try {
-      await apiRequest<{ ok: boolean }>("/api/account", {
-        method: "DELETE",
-        token,
-      });
+      await apiRequest<{ ok: boolean }>("/api/account", { method: "DELETE", token });
       await signOut();
       showAlert("Account deleted.", "success");
     } catch (error) {
@@ -311,79 +268,71 @@ export function SettingsPanel() {
   }
 
   return (
-    <div className="mx-auto mt-4 w-full max-w-5xl px-3 pb-16 sm:px-4">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto mt-6 w-full max-w-3xl px-4 pb-16">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link
             href="/chat"
-            className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--text-soft)] hover:text-[var(--text-main)]"
+            className="mb-2 inline-flex items-center gap-1 text-xs text-[var(--text-soft)] hover:text-[var(--text-primary)]"
           >
             <ArrowLeft size={14} />
             Back to Chat
           </Link>
-          <h1 className="text-2xl font-semibold text-[var(--text-main)] sm:text-3xl">Settings</h1>
-          <p className="text-sm text-[var(--text-soft)]">Minimal, practical workspace controls.</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Settings</h1>
         </div>
 
         <button
           type="button"
           onClick={saveSettings}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg border border-[var(--stroke)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text-main)] hover:bg-[var(--surface-alt)] disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-alt)] disabled:opacity-60"
         >
-          {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <Check size={15} /> : <Save size={15} />}
-          {saving ? "Saving" : saved ? "Saved" : "Save Changes"}
+          {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
+          {saving ? "Saving" : saved ? "Saved" : "Save"}
         </button>
       </div>
 
       <div className="grid gap-4">
-        <section className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] p-4">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--text-main)]">Appearance</h2>
+        {/* Appearance */}
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Appearance</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="grid gap-1 text-xs text-[var(--text-soft)]">
               Theme
               <select
                 value={settings.theme}
-                onChange={(event) => {
-                  const next = event.target.value as ThemeName;
-                  patchSettings((current) => ({ ...current, theme: next }));
+                onChange={(e) => {
+                  const next = e.target.value as ThemeName;
+                  patchSettings((c) => ({ ...c, theme: next }));
                   setTheme(next);
                 }}
-                className="rounded-lg border border-[var(--stroke)] bg-[var(--surface-alt)] px-3 py-2 text-sm text-[var(--text-main)]"
+                className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-sm text-[var(--text-primary)]"
               >
                 <option value="dark">Dark</option>
                 <option value="light">Light</option>
               </select>
             </label>
-
             <label className="grid gap-1 text-xs text-[var(--text-soft)]">
               Language
               <select
                 value={settings.language}
-                onChange={(event) => {
-                  const next = event.target.value as UiLanguage;
-                  patchSettings((current) => ({ ...current, language: next }));
-                }}
-                className="rounded-lg border border-[var(--stroke)] bg-[var(--surface-alt)] px-3 py-2 text-sm text-[var(--text-main)]"
+                onChange={(e) => patchSettings((c) => ({ ...c, language: e.target.value as UiLanguage }))}
+                className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-sm text-[var(--text-primary)]"
               >
                 <option value="en">English</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
+                <option value="es">Espa&ntilde;ol</option>
+                <option value="fr">Fran&ccedil;ais</option>
                 <option value="de">Deutsch</option>
                 <option value="ja">日本語</option>
                 <option value="hi">Hindi</option>
               </select>
             </label>
-
             <label className="grid gap-1 text-xs text-[var(--text-soft)]">
               Density
               <select
                 value={settings.density}
-                onChange={(event) => {
-                  const next = event.target.value as UiDensity;
-                  patchSettings((current) => ({ ...current, density: next }));
-                }}
-                className="rounded-lg border border-[var(--stroke)] bg-[var(--surface-alt)] px-3 py-2 text-sm text-[var(--text-main)]"
+                onChange={(e) => patchSettings((c) => ({ ...c, density: e.target.value as UiDensity }))}
+                className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-sm text-[var(--text-primary)]"
               >
                 <option value="comfortable">Comfortable</option>
                 <option value="compact">Compact</option>
@@ -393,19 +342,20 @@ export function SettingsPanel() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] p-4">
-          <h2 className="mb-3 text-sm font-semibold text-[var(--text-main)]">Model & Data</h2>
+        {/* Model & Data */}
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Model & Data</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-xs text-[var(--text-soft)]">
               Preferred Model
               <select
                 value={settings.preferred_model || "auto"}
-                onChange={(event) => {
-                  const raw = event.target.value;
+                onChange={(e) => {
+                  const raw = e.target.value;
                   const next = raw === "auto" ? null : (raw as Exclude<ModelName, null>);
-                  patchSettings((current) => ({ ...current, preferred_model: next }));
+                  patchSettings((c) => ({ ...c, preferred_model: next }));
                 }}
-                className="rounded-lg border border-[var(--stroke)] bg-[var(--surface-alt)] px-3 py-2 text-sm text-[var(--text-main)]"
+                className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-sm text-[var(--text-primary)]"
               >
                 <option value="auto">Auto Router</option>
                 <option value="gpt">GPT</option>
@@ -413,113 +363,77 @@ export function SettingsPanel() {
                 <option value="claude">Claude</option>
               </select>
             </label>
-
-            <div className="rounded-lg border border-[var(--stroke)] bg-[var(--surface-alt)] px-3 py-2">
+            <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
               <ToggleRow
                 label="Auto Store Chats"
                 description="Persist chats to your workspace"
                 checked={settings.auto_store_chats}
-                onChange={(next) => patchSettings((current) => ({ ...current, auto_store_chats: next }))}
+                onChange={(next) => patchSettings((c) => ({ ...c, auto_store_chats: next }))}
               />
             </div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] p-4">
-          <h2 className="mb-1 text-sm font-semibold text-[var(--text-main)]">Notifications</h2>
-          <p className="mb-2 text-xs text-[var(--text-soft)]">Control how updates are delivered.</p>
+        {/* Notifications */}
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Notifications</h2>
           <ToggleRow
             label="Email Digest"
             description="Receive periodic summary emails"
             checked={settings.notifications.email_digest}
-            onChange={(next) =>
-              patchSettings((current) => ({
-                ...current,
-                notifications: { ...current.notifications, email_digest: next },
-              }))
-            }
+            onChange={(next) => patchSettings((c) => ({ ...c, notifications: { ...c.notifications, email_digest: next } }))}
           />
           <ToggleRow
             label="Browser Push"
             description="Enable browser push notifications"
             checked={settings.notifications.browser_push}
-            onChange={(next) =>
-              patchSettings((current) => ({
-                ...current,
-                notifications: { ...current.notifications, browser_push: next },
-              }))
-            }
+            onChange={(next) => patchSettings((c) => ({ ...c, notifications: { ...c.notifications, browser_push: next } }))}
           />
           <ToggleRow
             label="Product Updates"
             description="Get feature release announcements"
             checked={settings.notifications.product_updates}
-            onChange={(next) =>
-              patchSettings((current) => ({
-                ...current,
-                notifications: { ...current.notifications, product_updates: next },
-              }))
-            }
+            onChange={(next) => patchSettings((c) => ({ ...c, notifications: { ...c.notifications, product_updates: next } }))}
           />
           <ToggleRow
             label="Weekly Recap"
             description="Receive weekly workspace report"
             checked={settings.notifications.weekly_recap}
-            onChange={(next) =>
-              patchSettings((current) => ({
-                ...current,
-                notifications: { ...current.notifications, weekly_recap: next },
-              }))
-            }
+            onChange={(next) => patchSettings((c) => ({ ...c, notifications: { ...c.notifications, weekly_recap: next } }))}
           />
         </section>
 
-        <section className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] p-4">
-          <h2 className="mb-1 text-sm font-semibold text-[var(--text-main)]">Privacy & Security</h2>
-          <p className="mb-2 text-xs text-[var(--text-soft)]">Session and privacy controls.</p>
-
+        {/* Privacy & Security */}
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Privacy & Security</h2>
           <ToggleRow
             label="Share Analytics"
             description="Share anonymous usage metrics"
             checked={settings.privacy.share_analytics}
-            onChange={(next) =>
-              patchSettings((current) => ({
-                ...current,
-                privacy: { ...current.privacy, share_analytics: next },
-              }))
-            }
+            onChange={(next) => patchSettings((c) => ({ ...c, privacy: { ...c.privacy, share_analytics: next } }))}
           />
           <ToggleRow
             label="Improve Model"
             description="Allow anonymized prompt quality feedback"
             checked={settings.privacy.improve_model}
-            onChange={(next) =>
-              patchSettings((current) => ({
-                ...current,
-                privacy: { ...current.privacy, improve_model: next },
-              }))
-            }
+            onChange={(next) => patchSettings((c) => ({ ...c, privacy: { ...c.privacy, improve_model: next } }))}
           />
           <ToggleRow
             label="Two-Factor Auth"
             description="Extra account login protection"
             checked={settings.security.two_factor_enabled}
-            onChange={(next) =>
-              patchSettings((current) => ({
-                ...current,
-                security: { ...current.security, two_factor_enabled: next },
-              }))
-            }
+            onChange={(next) => patchSettings((c) => ({ ...c, security: { ...c.security, two_factor_enabled: next } }))}
           />
 
-          <div className="mt-3 rounded-xl border border-[var(--stroke)] bg-[var(--surface-alt)] p-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-soft)]">Active Sessions</div>
+          {/* Sessions */}
+          <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wider text-[var(--text-soft)]">Active Sessions</span>
               <button
                 type="button"
                 onClick={logoutAll}
                 disabled={busyAction === "logout-all"}
-                className="inline-flex items-center gap-1 rounded-md border border-[var(--stroke)] px-2 py-1 text-xs text-[var(--text-main)] hover:bg-[var(--surface)] disabled:opacity-60"
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-alt)] disabled:opacity-60"
               >
                 {busyAction === "logout-all" ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
                 Logout Others
@@ -530,70 +444,67 @@ export function SettingsPanel() {
               {sessions.map((session) => (
                 <div
                   key={session.id}
-                  className="flex items-center justify-between rounded-lg border border-[var(--stroke)] bg-[var(--surface)] px-3 py-2"
+                  className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
                 >
                   <div className="text-xs text-[var(--text-soft)]">
-                    <p className="font-semibold text-[var(--text-main)]">{session.current ? "Current Session" : "Active Session"}</p>
+                    <p className="font-medium text-[var(--text-primary)]">{session.current ? "Current Session" : "Active Session"}</p>
                     <p>Started: {toReadableDate(session.created_at)}</p>
                     <p>Expires: {toReadableDate(session.expires_at)}</p>
                   </div>
-
                   {!session.current ? (
                     <button
                       type="button"
                       onClick={() => revokeSession(session.id)}
                       disabled={busyAction === `revoke-${session.id}`}
-                      className="rounded-md border border-red-200 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
+                      className="rounded-md border border-red-500/30 px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-500/5 disabled:opacity-60"
                     >
                       {busyAction === `revoke-${session.id}` ? "Revoking" : "Revoke"}
                     </button>
                   ) : (
-                    <span className="rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-emerald-600 dark:text-emerald-400">
                       Current
                     </span>
                   )}
                 </div>
               ))}
-
-              {!sessions.length ? <p className="text-xs text-[var(--text-soft)]">No session data.</p> : null}
+              {!sessions.length && <p className="text-xs text-[var(--text-soft)]">No session data.</p>}
             </div>
 
-            {currentSession ? (
+            {currentSession && (
               <p className="mt-2 text-[11px] text-[var(--text-soft)]">
-                Current token expires at {toReadableDate(currentSession.expires_at)}.
+                Token expires at {toReadableDate(currentSession.expires_at)}.
               </p>
-            ) : null}
+            )}
           </div>
         </section>
 
-        <section className="rounded-2xl border border-red-300/50 bg-red-50/50 p-4">
-          <h2 className="mb-2 text-sm font-semibold text-red-700">Danger Zone</h2>
+        {/* Danger Zone */}
+        <section className="rounded-lg border border-red-500/20 bg-red-500/5 p-4">
+          <h2 className="mb-3 text-sm font-semibold text-red-500">Danger Zone</h2>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={exportChats}
               disabled={busyAction === "export"}
-              className="inline-flex items-center gap-1 rounded-md border border-[var(--stroke)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--text-main)] disabled:opacity-60"
+              className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--text-primary)] disabled:opacity-60"
             >
               {busyAction === "export" ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
               Export Chats
             </button>
-
             <button
               type="button"
               onClick={clearChats}
               disabled={busyAction === "clear-chats"}
-              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400 disabled:opacity-60"
             >
               {busyAction === "clear-chats" ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
               Clear Chats
             </button>
-
             <button
               type="button"
               onClick={deleteAccount}
               disabled={busyAction === "delete-account"}
-              className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-red-100 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-1.5 text-xs text-red-500 disabled:opacity-60"
             >
               {busyAction === "delete-account" ? <Loader2 size={13} className="animate-spin" /> : <Shield size={13} />}
               Delete Account
@@ -601,14 +512,15 @@ export function SettingsPanel() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] p-4">
-          <h2 className="mb-2 text-sm font-semibold text-[var(--text-main)]">Account</h2>
-          <p className="text-sm text-[var(--text-main)]">{user?.name}</p>
+        {/* Account */}
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h2 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">Account</h2>
+          <p className="text-sm text-[var(--text-primary)]">{user?.name}</p>
           <p className="text-xs text-[var(--text-soft)]">{user?.email}</p>
           <button
             type="button"
             onClick={() => signOut().catch(() => null)}
-            className="mt-3 inline-flex items-center gap-1 rounded-md border border-[var(--stroke)] px-3 py-2 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--surface-alt)]"
+            className="mt-3 inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-primary)] hover:bg-[var(--surface-alt)]"
           >
             <LogOut size={13} />
             Sign Out
