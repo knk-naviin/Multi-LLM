@@ -15,4 +15,5 @@ export const TOKEN_KEY = "swastik.token";
 export const THEME_KEY = "swastik.theme";
 export const PREF_MODEL_KEY = "swastik.pref_model";
 export const AUTO_STORE_KEY = "swastik.auto_store";
+export const SHOW_MODEL_INFO_KEY = "swastik.show_model_info";
 export const TOKEN_COOKIE = "swastik_token";

@@ -14,6 +14,8 @@ interface MessageBubbleProps {
   loading?: boolean;
   loadingNode?: React.ReactNode;
   animateTypewriter?: boolean;
+  showModelInfo?: boolean;
+  timestamp?: number;
 }
 
 function CodeRenderer({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -32,20 +34,28 @@ function CodeRenderer({ className, children }: { className?: string; children?: 
   };
 
   return (
-    <div className="my-2 overflow-hidden rounded-lg border border-[var(--border)] bg-[#0d1117] [data-theme='light']_&:bg-[#f6f8fa]">
-      <div className="flex items-center justify-between border-b border-white/10 bg-[#161b22] px-3 py-1.5 text-[11px] text-zinc-400">
-        <span className="font-mono">{language}</span>
+    <div className="my-3 overflow-hidden rounded-lg border border-[var(--border)] max-w-full">
+      <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-alt)] px-3 py-1.5 text-[11px]">
+        <span className="font-mono font-medium text-[var(--text-muted)]">{language}</span>
         <button
           type="button"
           onClick={copyCode}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-zinc-400 transition hover:bg-white/10 hover:text-white"
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
         >
           {copied ? <Check size={11} /> : <Copy size={11} />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="overflow-x-auto p-3 text-[12.5px] leading-5 text-zinc-100">
-        <code>{source}</code>
+      <pre
+        className="overflow-x-auto bg-[#D3D3D3] p-4 text-[13px] leading-6 dark:bg-[#1e1e1e]"
+        style={{ fontFamily: "'Fira Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" }}
+      >
+        <code
+          className="text-[#1e1e1e] dark:text-[#d4d4d4]"
+          style={{ fontFamily: "inherit" }}
+        >
+          {source}
+        </code>
       </pre>
     </div>
   );
@@ -58,7 +68,10 @@ const markdownComponents: Components = {
 
     if (!source.includes("\n")) {
       return (
-        <code className="rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1.5 py-0.5 font-mono text-[12px] text-[var(--text-primary)]">
+        <code
+          className="rounded border border-[var(--border)] bg-[#D3D3D3] px-1.5 py-0.5 text-[12.5px] text-[#1e1e1e] dark:bg-[#2d2d2d] dark:text-[#d4d4d4]"
+          style={{ fontFamily: "'Fira Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" }}
+        >
           {source}
         </code>
       );
@@ -78,7 +91,7 @@ const markdownComponents: Components = {
   },
   table(props) {
     return (
-      <div className="my-2 overflow-x-auto rounded-lg border border-[var(--border)]">
+      <div className="my-3 overflow-x-auto rounded-lg border border-[var(--border)] max-w-full">
         <table className="w-full text-sm" {...props} />
       </div>
     );
@@ -89,7 +102,7 @@ const markdownComponents: Components = {
   th(props) {
     return (
       <th
-        className="border-b border-[var(--border)] px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]"
+        className="border-b border-[var(--border)] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]"
         {...props}
       />
     );
@@ -97,12 +110,32 @@ const markdownComponents: Components = {
   td(props) {
     return (
       <td
-        className="border-b border-[var(--border)] px-3 py-2 text-[var(--text-primary)]"
+        className="border-b border-[var(--border)] px-3 py-2.5 text-[var(--text-primary)]"
         {...props}
       />
     );
   },
 };
+
+function formatTimestamp(ts: number): string {
+  const date = new Date(ts);
+  const now = new Date();
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function StreamingText({ content }: { content: string }) {
   const [displayedLength, setDisplayedLength] = useState(0);
@@ -115,7 +148,6 @@ function StreamingText({ content }: { content: string }) {
       return;
     }
 
-    // Stream in chunks for a more natural feel
     const chunkSize = content.length > 500 ? 8 : content.length > 200 ? 4 : 2;
     const speed = content.length > 500 ? 8 : content.length > 200 ? 12 : 16;
 
@@ -132,7 +164,7 @@ function StreamingText({ content }: { content: string }) {
 
   return (
     <div className="animate-fade-in">
-      <div className={`prose prose-sm max-w-none break-words prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit ${!isDone ? "streaming-cursor" : ""}`}>
+      <div className={`prose prose-sm max-w-none select-text break-words prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit ${!isDone ? "streaming-cursor" : ""}`}>
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {visibleContent}
         </ReactMarkdown>
@@ -149,16 +181,18 @@ export function MessageBubble({
   loading,
   loadingNode,
   animateTypewriter,
+  showModelInfo = true,
+  timestamp,
 }: MessageBubbleProps) {
   const isAssistant = role === "assistant";
 
   const renderedContent = useMemo(() => {
     if (loading) {
       return (
-        <div className="py-0.5">
+        <div className="py-1">
           <div className="flex items-center gap-3">
             {loadingNode}
-            <span className="text-xs text-[var(--text-soft)] animate-pulse">{detail || "Thinking..."}</span>
+            <span className="text-xs text-[var(--text-soft)]">{detail || "Thinking..."}</span>
           </div>
         </div>
       );
@@ -173,33 +207,46 @@ export function MessageBubble({
 
   if (!isAssistant) {
     return (
-      <div className="animate-fade-in flex justify-end py-1.5">
-        <div className="max-w-[75%] rounded-2xl rounded-br-md bg-[var(--brand)] px-3.5 py-2 text-sm leading-6 text-white sm:max-w-[65%]">
+      <div className="animate-fade-in flex justify-end py-2">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--brand)] px-4 py-2.5 text-sm leading-relaxed text-white select-text sm:max-w-[65%]">
           {content}
         </div>
+        {timestamp && (
+          <div className="mt-1 flex justify-end">
+            <span className="text-[10px] text-[var(--text-soft)]">{formatTimestamp(timestamp)}</span>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="animate-fade-in py-1.5">
-      <div className="text-sm leading-6 text-[var(--text-primary)]">
+    <div className="animate-fade-in py-2 select-text">
+      <div className="text-[14px] leading-7 text-[var(--text-primary)] overflow-hidden">
         {animateTypewriter && !loading ? (
           <StreamingText content={content} />
         ) : (
-          <div className="prose prose-sm max-w-none break-words prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
+          <div className="prose prose-sm max-w-none select-text break-words prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
             {renderedContent}
           </div>
         )}
       </div>
 
-      {!loading && modelUsed && (
-        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[var(--text-soft)]">
-          <Cpu size={10} />
-          <span className="font-medium uppercase">{modelUsed}</span>
-          {detail && <span className="text-[var(--text-soft)]">&middot; {detail}</span>}
-        </div>
-      )}
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--text-soft)]">
+        {!loading && showModelInfo && modelUsed && (
+          <div className="flex items-center gap-1.5">
+            <Cpu size={10} />
+            <span className="font-medium uppercase">{modelUsed}</span>
+            {detail && <span>&middot; {detail}</span>}
+          </div>
+        )}
+        {!loading && timestamp && (
+          <span className={showModelInfo && modelUsed ? "ml-1" : ""}>
+            {showModelInfo && modelUsed && <span>&middot; </span>}
+            {formatTimestamp(timestamp)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

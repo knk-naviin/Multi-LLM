@@ -12,7 +12,14 @@ import { useAlerts } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { APP_NAME, CLIENT_ROUTER_KEY } from "@/lib/constants";
-import { getAutoStore, getPreferredModel, setAutoStore, setPreferredModel } from "@/lib/preferences";
+import {
+  getAutoStore,
+  getPreferredModel,
+  getShowModelInfo,
+  setAutoStore,
+  setPreferredModel,
+  setShowModelInfo as saveShowModelInfo,
+} from "@/lib/preferences";
 import type {
   ChatCompletionResponse,
   ChatSummary,
@@ -21,6 +28,44 @@ import type {
   ModelName,
   UiMessage,
 } from "@/lib/types";
+
+/* ─── Session persistence keys ─── */
+const SESSION_CHAT_ID = "swastik.session.chatId";
+const SESSION_CHAT_TITLE = "swastik.session.chatTitle";
+const SESSION_MESSAGES = "swastik.session.messages";
+const SESSION_FOLDER_ID = "swastik.session.folderId";
+
+function saveSession(chatId: string | null, title: string | null, messages: UiMessage[], folderId: string | null) {
+  try {
+    sessionStorage.setItem(SESSION_CHAT_ID, chatId || "");
+    sessionStorage.setItem(SESSION_CHAT_TITLE, title || "");
+    sessionStorage.setItem(SESSION_FOLDER_ID, folderId || "");
+    // Only store if there are real messages (not just welcome)
+    const hasRealMessages = messages.some((m) => m.id !== "welcome-assistant");
+    if (hasRealMessages) {
+      sessionStorage.setItem(SESSION_MESSAGES, JSON.stringify(messages));
+    } else {
+      sessionStorage.removeItem(SESSION_MESSAGES);
+    }
+  } catch {
+    // sessionStorage might be unavailable
+  }
+}
+
+function loadSession(): { chatId: string | null; title: string | null; messages: UiMessage[] | null; folderId: string | null } {
+  try {
+    const chatId = sessionStorage.getItem(SESSION_CHAT_ID) || null;
+    const title = sessionStorage.getItem(SESSION_CHAT_TITLE) || null;
+    const folderId = sessionStorage.getItem(SESSION_FOLDER_ID) || null;
+    const raw = sessionStorage.getItem(SESSION_MESSAGES);
+    const messages = raw ? JSON.parse(raw) as UiMessage[] : null;
+    return { chatId, title, messages, folderId };
+  } catch {
+    return { chatId: null, title: null, messages: null, folderId: null };
+  }
+}
+
+/* ─── Constants ─── */
 
 const welcomeMessage: UiMessage = {
   id: "welcome-assistant",
@@ -38,13 +83,8 @@ function messageFromThread(message: ChatThread["messages"][number], index: numbe
     modelUsed: message.model_used,
     detail: message.role === "assistant" ? "Stored" : undefined,
     animateTypewriter: false,
+    timestamp: message.created_at ? new Date(message.created_at).getTime() : undefined,
   };
-}
-
-function safeTitle(text: string): string {
-  const compact = text.trim().replace(/\s+/g, " ");
-  if (!compact) return "Conversation";
-  return compact.length > 60 ? `${compact.slice(0, 60)}...` : compact;
 }
 
 type SidebarEvent = CustomEvent<{ open?: boolean }>;
@@ -56,16 +96,23 @@ const MODEL_OPTIONS: { value: ModelName | "auto"; label: string }[] = [
   { value: "claude", label: "Claude" },
 ];
 
+const LOADING_MESSAGES = [
+  "Selecting best model...",
+  "Analyzing your prompt...",
+  "Routing to optimal AI...",
+  "Generating response...",
+];
+
 function SkeletonMessage() {
   return (
-    <div className="animate-fade-in py-1.5">
-      <div className="space-y-2">
+    <div className="animate-fade-in py-2">
+      <div className="space-y-2.5">
         <div className="skeleton h-4 w-3/4" />
         <div className="skeleton h-4 w-full" />
         <div className="skeleton h-4 w-5/6" />
         <div className="skeleton h-4 w-2/3" />
       </div>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2">
         <div className="skeleton h-3 w-16" />
         <div className="skeleton h-3 w-12" />
       </div>
@@ -91,15 +138,26 @@ function ChatWorkspace() {
   const [sending, setSending] = useState(false);
   const [storeEnabled, setStoreEnabled] = useState<boolean>(true);
   const [preferredModel, setPreferredModelState] = useState<ModelName>(null);
+  const [showModelInfo, setShowModelInfoState] = useState<boolean>(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(LOADING_MESSAGES[0]);
 
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const sessionRestoredRef = useRef(false);
+  const loadingMsgIndexRef = useRef(0);
 
   const selectedFolder = useMemo(
     () => folders.find((f) => f.id === selectedFolderId),
     [folders, selectedFolderId]
   );
+
+  // Persist session whenever chat state changes
+  useEffect(() => {
+    if (sessionRestoredRef.current) {
+      saveSession(currentChatId, currentChatTitle, messages, selectedFolderId);
+    }
+  }, [currentChatId, currentChatTitle, messages, selectedFolderId]);
 
   const loadChats = useCallback(
     async (folderId: string | null) => {
@@ -120,14 +178,27 @@ function ChatWorkspace() {
     [currentChatId, isAuthenticated, token]
   );
 
+  // Restore session on mount
   useEffect(() => {
     setStoreEnabled(getAutoStore());
     setPreferredModelState(getPreferredModel());
+    setShowModelInfoState(getShowModelInfo());
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("auth") === "1" || params.get("authRequired") === "1") {
       setAuthModalOpen(true);
     }
+
+    // Restore previous chat state if coming back from another tab
+    const session = loadSession();
+    if (session.messages && session.messages.length > 0) {
+      setMessages(session.messages);
+      setCurrentChatId(session.chatId);
+      setCurrentChatTitle(session.title);
+      if (session.folderId) setSelectedFolderId(session.folderId);
+    }
+
+    sessionRestoredRef.current = true;
   }, []);
 
   useEffect(() => {
@@ -173,6 +244,7 @@ function ChatWorkspace() {
           settings: {
             preferred_model?: ModelName;
             auto_store_chats?: boolean;
+            show_model_info?: boolean;
           };
         }>("/api/settings", { token }),
       ]);
@@ -181,10 +253,13 @@ function ChatWorkspace() {
 
       const pref = settingsRes.settings?.preferred_model ?? getPreferredModel();
       const autoStore = settingsRes.settings?.auto_store_chats ?? getAutoStore();
+      const modelInfo = settingsRes.settings?.show_model_info ?? getShowModelInfo();
       setPreferredModelState(pref || null);
       setStoreEnabled(Boolean(autoStore));
+      setShowModelInfoState(modelInfo !== false);
       setPreferredModel(pref || null);
       setAutoStore(Boolean(autoStore));
+      saveShowModelInfo(modelInfo !== false);
     };
 
     load().catch((error) => {
@@ -197,6 +272,31 @@ function ChatWorkspace() {
       showAlert(error instanceof Error ? error.message : "Failed to load chats");
     });
   }, [loadChats, selectedFolderId, showAlert]);
+
+  // Cycle loading messages while waiting for response
+  useEffect(() => {
+    if (!sending) return;
+    loadingMsgIndexRef.current = 0;
+    setLoadingDetail(LOADING_MESSAGES[0]);
+
+    const interval = setInterval(() => {
+      loadingMsgIndexRef.current = (loadingMsgIndexRef.current + 1) % LOADING_MESSAGES.length;
+      setLoadingDetail(LOADING_MESSAGES[loadingMsgIndexRef.current]);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [sending]);
+
+  // Listen for settings changes (e.g. show_model_info toggled in settings page)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "swastik.show_model_info") {
+        setShowModelInfoState(e.newValue !== "false");
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const selectChat = async (chatId: string) => {
     if (!token) return;
@@ -251,11 +351,78 @@ function ChatWorkspace() {
     }
   };
 
+  const renameFolder = async (folderId: string, newName: string) => {
+    if (!token) return;
+    try {
+      await apiRequest<{ ok: boolean }>(`/api/folders/${folderId}`, {
+        method: "PATCH",
+        token,
+        body: { name: newName },
+      });
+      const updated = await apiRequest<{ ok: boolean; folders: Folder[] }>("/api/folders", { token });
+      setFolders(updated.folders);
+      showAlert("Folder renamed.", "success");
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : "Failed to rename folder");
+    }
+  };
+
+  const deleteFolder = async (folderId: string) => {
+    if (!token) return;
+    const confirmed = window.confirm("Delete this folder? Chats inside will be moved to All Chats.");
+    if (!confirmed) return;
+    try {
+      await apiRequest<{ ok: boolean }>(`/api/folders/${folderId}`, {
+        method: "DELETE",
+        token,
+      });
+      if (selectedFolderId === folderId) {
+        setSelectedFolderId(null);
+      }
+      const updated = await apiRequest<{ ok: boolean; folders: Folder[] }>("/api/folders", { token });
+      setFolders(updated.folders);
+      await loadChats(selectedFolderId === folderId ? null : selectedFolderId);
+      showAlert("Folder deleted.", "success");
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : "Failed to delete folder");
+    }
+  };
+
   const startNewChat = () => {
     setCurrentChatId(null);
     setCurrentChatTitle(null);
     setMessages([welcomeMessage]);
   };
+
+  // Auto-generate chat title via model (fire and forget)
+  const generateChatTitle = useCallback(
+    async (userPrompt: string, assistantResponse: string) => {
+      try {
+        const titleResponse = await apiRequest<ChatCompletionResponse>("/api/chat/complete", {
+          method: "POST",
+          token,
+          body: {
+            prompt: `Generate a concise 3-6 word title for this conversation. Reply with ONLY the title, nothing else.\n\nUser: ${userPrompt}\nAssistant: ${assistantResponse.slice(0, 200)}`,
+            forced_model: "gemini",
+            store: false,
+          },
+        });
+
+        const title = titleResponse.response
+          .replace(/^["']|["']$/g, "")
+          .replace(/^title:\s*/i, "")
+          .trim()
+          .slice(0, 60);
+
+        if (title && title.length > 1) {
+          setCurrentChatTitle(title);
+        }
+      } catch {
+        // Silent fail — keep the existing title
+      }
+    },
+    [token]
+  );
 
   const sendPrompt = async () => {
     if (sending) return;
@@ -266,24 +433,28 @@ function ChatWorkspace() {
     setSending(true);
     setPrompt("");
 
+    const now = Date.now();
+
     const userMessage: UiMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${now}`,
       role: "user",
       content: text,
+      timestamp: now,
     };
 
-    const loadingId = `assistant-loading-${Date.now()}`;
+    const loadingId = `assistant-loading-${now}`;
     const loadingMessage: UiMessage = {
       id: loadingId,
       role: "assistant",
       content: "",
       loading: true,
-      detail: "Selecting best model...",
+      detail: loadingDetail,
     };
 
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
 
     const shouldStore = Boolean(isAuthenticated && storeEnabled && token);
+    const isFirstMessage = !currentChatTitle;
 
     try {
       const response = await apiRequest<ChatCompletionResponse>("/api/chat/complete", {
@@ -310,6 +481,7 @@ function ChatWorkspace() {
         modelUsed: response.model_selected,
         detail: `${response.domain || "general"}${fallback}`,
         animateTypewriter: true,
+        timestamp: Date.now(),
       };
 
       setMessages((prev) => {
@@ -317,8 +489,11 @@ function ChatWorkspace() {
         return [...withoutLoader, assistantMessage];
       });
 
-      if (!currentChatTitle) {
-        setCurrentChatTitle(safeTitle(text));
+      // Auto-name the chat via model on first message
+      if (isFirstMessage) {
+        setCurrentChatTitle(text.slice(0, 40) + (text.length > 40 ? "..." : ""));
+        // Fire background title generation
+        generateChatTitle(text, response.response);
       }
 
       if (response.chat_id && token) {
@@ -337,7 +512,7 @@ function ChatWorkspace() {
 
   return (
     <>
-      <div className="flex h-[calc(100dvh-49px)] w-full gap-0">
+      <div className="flex h-[calc(100dvh-49px)] w-full gap-0 overflow-hidden">
         {/* Desktop sidebar */}
         <div className="hidden w-[260px] shrink-0 border-r border-[var(--border)] lg:block">
           <ChatSidebar
@@ -357,31 +532,33 @@ function ChatWorkspace() {
             onSelectChat={selectChat}
             onStartNewChat={startNewChat}
             onOpenAuth={() => setAuthModalOpen(true)}
+            onRenameFolder={renameFolder}
+            onDeleteFolder={deleteFolder}
           />
         </div>
 
         {/* Main chat area */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Chat header with breadcrumb */}
-          <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--border)] px-3 sm:px-4">
+            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
               <button
                 type="button"
                 onClick={() => setMobileSidebarOpen(true)}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-alt)] lg:hidden"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-alt)] lg:hidden"
               >
                 <PanelLeft size={16} />
               </button>
 
               {/* Breadcrumb */}
-              <nav className="flex items-center gap-1 text-sm min-w-0">
+              <nav className="flex items-center gap-1 text-xs sm:text-sm min-w-0 overflow-hidden">
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedFolderId(null);
                     startNewChat();
                   }}
-                  className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                  className="flex shrink-0 items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                 >
                   <Home size={13} />
                   <span className="hidden sm:inline">Chats</span>
@@ -389,22 +566,22 @@ function ChatWorkspace() {
 
                 {selectedFolder && (
                   <>
-                    <ChevronRight size={12} className="text-[var(--text-soft)]" />
+                    <ChevronRight size={12} className="shrink-0 text-[var(--text-soft)]" />
                     <button
                       type="button"
                       onClick={() => startNewChat()}
-                      className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                      className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors min-w-0"
                     >
-                      <FolderOpen size={12} />
-                      <span className="max-w-[100px] truncate">{selectedFolder.name}</span>
+                      <FolderOpen size={12} className="shrink-0" />
+                      <span className="max-w-[80px] sm:max-w-[100px] truncate">{selectedFolder.name}</span>
                     </button>
                   </>
                 )}
 
                 {currentChatId && (
                   <>
-                    <ChevronRight size={12} className="text-[var(--text-soft)]" />
-                    <span className="truncate font-medium text-[var(--text-primary)] max-w-[200px]">
+                    <ChevronRight size={12} className="shrink-0 text-[var(--text-soft)]" />
+                    <span className="truncate font-medium text-[var(--text-primary)] max-w-[100px] sm:max-w-[200px]">
                       {currentChatTitle || "Conversation"}
                     </span>
                   </>
@@ -412,14 +589,14 @@ function ChatWorkspace() {
 
                 {!currentChatId && !selectedFolder && (
                   <>
-                    <ChevronRight size={12} className="text-[var(--text-soft)]" />
+                    <ChevronRight size={12} className="shrink-0 text-[var(--text-soft)]" />
                     <span className="font-medium text-[var(--text-primary)]">New Chat</span>
                   </>
                 )}
               </nav>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Model selector */}
               <div className="relative">
                 <select
@@ -453,8 +630,8 @@ function ChatWorkspace() {
           </div>
 
           {/* Messages */}
-          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <div className="mx-auto flex max-w-4xl flex-col gap-1 px-4 py-4">
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+            <div className="mx-auto flex max-w-4xl flex-col gap-1 px-3 py-4 sm:px-6">
               {loadingChat ? (
                 <>
                   <SkeletonMessage />
@@ -468,10 +645,12 @@ function ChatWorkspace() {
                     role={item.role}
                     content={item.content}
                     modelUsed={item.modelUsed}
-                    detail={item.detail}
+                    detail={item.loading ? loadingDetail : item.detail}
                     loading={item.loading}
                     loadingNode={<LoaderDots />}
                     animateTypewriter={item.animateTypewriter}
+                    showModelInfo={showModelInfo}
+                    timestamp={item.timestamp}
                   />
                 ))
               )}
@@ -525,6 +704,8 @@ function ChatWorkspace() {
               setAuthModalOpen(true);
             }}
             onNavigate={() => setMobileSidebarOpen(false)}
+            onRenameFolder={renameFolder}
+            onDeleteFolder={deleteFolder}
           />
         </div>
       </div>

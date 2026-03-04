@@ -17,8 +17,12 @@ import { useAlerts } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { apiRequest } from "@/lib/api";
-import { THEME_KEY } from "@/lib/constants";
-import { setAutoStore, setPreferredModel } from "@/lib/preferences";
+import {
+  setAutoStore,
+  setPreferredModel,
+  setShowModelInfo as saveShowModelInfo,
+  getShowModelInfo,
+} from "@/lib/preferences";
 import type { AppSettings, AuthSession, ModelName, ThemeName, UiDensity, UiLanguage } from "@/lib/types";
 
 interface SettingsResponse {
@@ -26,15 +30,11 @@ interface SettingsResponse {
   settings: AppSettings;
 }
 
-function getStoredTheme(): ThemeName {
-  if (typeof window === "undefined") return "dark";
-  return window.localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
-}
-
 const defaultSettings: AppSettings = {
   preferred_model: null,
-  theme: typeof window !== "undefined" ? getStoredTheme() : "dark",
+  theme: "light",
   auto_store_chats: true,
+  show_model_info: true,
   language: "en",
   density: "comfortable",
   notifications: {
@@ -107,6 +107,7 @@ export function SettingsPanel() {
   const [settings, setSettings] = useState<AppSettings>(() => ({
     ...defaultSettings,
     theme: theme as ThemeName,
+    show_model_info: getShowModelInfo(),
   }));
   const [sessions, setSessions] = useState<AuthSession[]>([]);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -129,12 +130,22 @@ export function SettingsPanel() {
         apiRequest<{ ok: boolean; sessions: AuthSession[] }>("/api/auth/sessions", { token }),
       ]);
 
-      setSettings(settingsRes.settings);
+      // IMPORTANT: Preserve the current local theme instead of overriding from backend.
+      // The backend defaults to "dark" which would force dark mode on every settings page visit.
+      const currentTheme = theme as ThemeName;
+      const showModelPref = settingsRes.settings?.show_model_info ?? getShowModelInfo();
+
+      setSettings({
+        ...settingsRes.settings,
+        theme: currentTheme,
+        show_model_info: showModelPref !== false,
+      });
       setSessions(sessionsRes.sessions || []);
 
-      setTheme(settingsRes.settings.theme);
+      // Do NOT call setTheme here — keep the user's current theme
       setPreferredModel(settingsRes.settings.preferred_model);
       setAutoStore(settingsRes.settings.auto_store_chats);
+      saveShowModelInfo(showModelPref !== false);
     };
 
     load()
@@ -165,10 +176,15 @@ export function SettingsPanel() {
         body: settings,
       });
 
-      setSettings(response.settings);
-      setTheme(response.settings.theme);
+      setSettings((prev) => ({
+        ...response.settings,
+        theme: prev.theme,
+        show_model_info: prev.show_model_info,
+      }));
+      setTheme(settings.theme);
       setPreferredModel(response.settings.preferred_model);
       setAutoStore(response.settings.auto_store_chats);
+      saveShowModelInfo(settings.show_model_info);
 
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1600);
@@ -318,8 +334,8 @@ export function SettingsPanel() {
                 }}
                 className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-sm text-[var(--text-primary)]"
               >
-                <option value="dark">Dark</option>
                 <option value="light">Light</option>
+                <option value="dark">Dark</option>
               </select>
             </label>
             <label className="grid gap-1 text-xs text-[var(--text-soft)]">
@@ -373,14 +389,29 @@ export function SettingsPanel() {
                 <option value="claude">Claude</option>
               </select>
             </label>
-            <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
-              <ToggleRow
-                label="Auto Store Chats"
-                description="Persist chats to your workspace"
-                checked={settings.auto_store_chats}
-                onChange={(next) => patchSettings((c) => ({ ...c, auto_store_chats: next }))}
-              />
+            <div className="grid gap-0">
+              <div className="rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
+                <ToggleRow
+                  label="Auto Store Chats"
+                  description="Persist chats to your workspace"
+                  checked={settings.auto_store_chats}
+                  onChange={(next) => patchSettings((c) => ({ ...c, auto_store_chats: next }))}
+                />
+              </div>
             </div>
+          </div>
+
+          <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--background)] p-3">
+            <ToggleRow
+              label="Show Model Info"
+              description="Display which AI model was used below each response"
+              checked={settings.show_model_info}
+              onChange={(next) => {
+                patchSettings((c) => ({ ...c, show_model_info: next }));
+                // Immediately save to localStorage so ChatWorkspace picks it up
+                saveShowModelInfo(next);
+              }}
+            />
           </div>
         </section>
 

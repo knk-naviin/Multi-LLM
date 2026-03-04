@@ -7,6 +7,7 @@ export interface AppSettings {
   preferred_model: ModelName;
   theme: ThemeName;
   auto_store_chats: boolean;
+  show_model_info: boolean;
   language: UiLanguage;
   density: UiDensity;
   notifications: {
@@ -50,6 +51,7 @@ export interface UiMessage {
   detail?: string;
   loading?: boolean;
   animateTypewriter?: boolean;
+  timestamp?: number;
 }
 
 export interface Project {

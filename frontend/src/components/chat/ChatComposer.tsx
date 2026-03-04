@@ -26,7 +26,7 @@ export function ChatComposer({ value, disabled, onChange, onSend }: ChatComposer
   const canSend = !disabled && value.trim().length > 0;
 
   return (
-    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 pb-3 pt-2">
+    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-3 pb-3 pt-2 sm:px-4">
       <div className="mx-auto flex max-w-4xl items-end gap-2">
         <div className="flex min-h-[40px] flex-1 items-end rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 focus-within:border-[var(--text-soft)] transition-colors">
           <textarea

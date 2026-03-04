@@ -11,9 +11,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { APP_NAME } from "@/lib/constants";
 
-const navItems = [
+const publicNavItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/about", label: "About", icon: Info },
+];
+
+const authNavItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -85,7 +88,7 @@ export function Navbar() {
 
           {/* Center */}
           <nav className="hidden items-center gap-0.5 md:flex">
-            {navItems.map((item) => {
+            {[...publicNavItems, ...(isAuthenticated ? authNavItems : [])].map((item) => {
               const active = pathname === item.href;
               const Icon = item.icon;
               return (
@@ -198,7 +201,7 @@ export function Navbar() {
           </div>
 
           <nav className="grid gap-1">
-            {navItems.map((item) => {
+            {[...publicNavItems, ...(isAuthenticated ? authNavItems : [])].map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
               return (
