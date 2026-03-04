@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import type { ChatSummary, Folder, User } from "@/lib/types";
+import { BRAND_GRADIENT } from "@/lib/brand";
 
 interface ChatSidebarProps {
   user: User | null;
@@ -36,24 +37,20 @@ interface ChatSidebarProps {
   onNavigate?: () => void;
   onRenameFolder?: (folderId: string, newName: string) => void;
   onDeleteFolder?: (folderId: string) => void;
+  onDeleteChat?: (chatId: string) => void;
+  onRenameChat?: (chatId: string, newTitle: string) => void;
 }
 
-function FolderMenu({
-  folderId,
-  folderNameValue,
-  onRename,
-  onDelete,
+/* ─── Three-dot dropdown menu for folders & chats ─── */
+function ItemMenu({
+  onRenameClick,
+  onDeleteClick,
 }: {
-  folderId: string;
-  folderNameValue: string;
-  onRename?: (folderId: string, newName: string) => void;
-  onDelete?: (folderId: string) => void;
+  onRenameClick: () => void;
+  onDeleteClick: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [renamingValue, setRenamingValue] = useState(folderNameValue);
   const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -66,67 +63,6 @@ function FolderMenu({
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
-
-  useEffect(() => {
-    if (renaming && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [renaming]);
-
-  const handleRenameSubmit = () => {
-    const trimmed = renamingValue.trim();
-    if (trimmed.length >= 2 && trimmed !== folderNameValue) {
-      onRename?.(folderId, trimmed);
-    }
-    setRenaming(false);
-    setMenuOpen(false);
-  };
-
-  if (renaming) {
-    return (
-      <div className="flex items-center gap-1 ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={renamingValue}
-          onChange={(e) => setRenamingValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleRenameSubmit();
-            }
-            if (e.key === "Escape") {
-              setRenaming(false);
-              setRenamingValue(folderNameValue);
-            }
-          }}
-          className="w-20 rounded border border-[var(--brand)] bg-[var(--background)] px-1.5 py-0.5 text-[11px] text-[var(--text-primary)] outline-none"
-        />
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleRenameSubmit();
-          }}
-          className="rounded p-0.5 text-emerald-500 hover:bg-[var(--surface-hover)]"
-        >
-          <Check size={11} />
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setRenaming(false);
-            setRenamingValue(folderNameValue);
-          }}
-          className="rounded p-0.5 text-[var(--text-soft)] hover:bg-[var(--surface-hover)]"
-        >
-          <X size={11} />
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div ref={menuRef} className="relative ml-auto shrink-0">
@@ -147,11 +83,10 @@ function FolderMenu({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setRenamingValue(folderNameValue);
-              setRenaming(true);
+              onRenameClick();
               setMenuOpen(false);
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--surface-alt)] transition"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px] text-[var(--text-primary)] hover:bg-[var(--surface-alt)] transition"
           >
             <Pencil size={11} />
             Rename
@@ -160,7 +95,7 @@ function FolderMenu({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete?.(folderId);
+              onDeleteClick();
               setMenuOpen(false);
             }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px] text-red-500 hover:bg-red-500/5 transition"
@@ -184,6 +119,8 @@ function FolderTreeItem({
   onNavigate,
   onRenameFolder,
   onDeleteFolder,
+  onDeleteChat,
+  onRenameChat,
 }: {
   folder: Folder;
   chats: ChatSummary[];
@@ -194,16 +131,55 @@ function FolderTreeItem({
   onNavigate?: () => void;
   onRenameFolder?: (folderId: string, newName: string) => void;
   onDeleteFolder?: (folderId: string) => void;
+  onDeleteChat?: (chatId: string) => void;
+  onRenameChat?: (chatId: string, newTitle: string) => void;
 }) {
   const [expanded, setExpanded] = useState(isSelected);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(folder.name);
+  const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
+  const [chatRenameValue, setChatRenameValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
   const folderChats = chats.filter(
     (c) => c.folder_id === folder.id || c.project_id === folder.id
   );
 
+  useEffect(() => {
+    if (renaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [renaming]);
+
+  useEffect(() => {
+    if (renamingChatId && chatInputRef.current) {
+      chatInputRef.current.focus();
+      chatInputRef.current.select();
+    }
+  }, [renamingChatId]);
+
+  const handleFolderRenameSubmit = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed.length >= 2 && trimmed !== folder.name) {
+      onRenameFolder?.(folder.id, trimmed);
+    }
+    setRenaming(false);
+  };
+
+  const handleChatRenameSubmit = (chatId: string) => {
+    const trimmed = chatRenameValue.trim();
+    if (trimmed.length >= 1) {
+      onRenameChat?.(chatId, trimmed);
+    }
+    setRenamingChatId(null);
+  };
+
   return (
-    <div className="animate-slide-in group">
+    <div className="animate-slide-in group/folder">
       <div
-        className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition cursor-pointer ${
+        className={`group flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition cursor-pointer ${
           isSelected
             ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
             : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
@@ -229,41 +205,244 @@ function FolderTreeItem({
             <span className="w-3 shrink-0" />
           )}
           <FolderOpen size={12} className="shrink-0" />
-          <span className="truncate">{folder.name}</span>
-          {folderChats.length > 0 && (
-            <span className="text-[10px] text-[var(--text-soft)]">{folderChats.length}</span>
+
+          {renaming ? (
+            <div className="flex items-center gap-1 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={inputRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleFolderRenameSubmit();
+                  }
+                  if (e.key === "Escape") {
+                    setRenaming(false);
+                    setRenameValue(folder.name);
+                  }
+                }}
+                className="min-w-0 flex-1 rounded border border-[var(--brand)] bg-[var(--background)] px-1.5 py-0.5 text-xs text-[var(--text-primary)] outline-none"
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFolderRenameSubmit();
+                }}
+                className="rounded p-0.5 text-emerald-500 hover:bg-[var(--surface-hover)]"
+              >
+                <Check size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRenaming(false);
+                  setRenameValue(folder.name);
+                }}
+                className="rounded p-0.5 text-[var(--text-soft)] hover:bg-[var(--surface-hover)]"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className="truncate">{folder.name}</span>
+              {folderChats.length > 0 && (
+                <span className="text-[10px] text-[var(--text-soft)]">{folderChats.length}</span>
+              )}
+            </>
           )}
         </button>
 
-        <FolderMenu
-          folderId={folder.id}
-          folderNameValue={folder.name}
-          onRename={onRenameFolder}
-          onDelete={onDeleteFolder}
-        />
+        {!renaming && (
+          <ItemMenu
+            onRenameClick={() => {
+              setRenameValue(folder.name);
+              setRenaming(true);
+            }}
+            onDeleteClick={() => onDeleteFolder?.(folder.id)}
+          />
+        )}
       </div>
 
       {expanded && folderChats.length > 0 && (
         <div className="ml-3 border-l border-[var(--border)] pl-2 mt-0.5">
           {folderChats.map((chat) => (
-            <button
-              key={chat.id}
-              type="button"
-              onClick={() => {
-                onSelectChat(chat.id);
-                onNavigate?.();
-              }}
-              className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11px] transition ${
-                currentChatId === chat.id
-                  ? "bg-[var(--brand-subtle)] text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
-              }`}
-            >
-              <MessageSquare size={10} className="shrink-0 text-[var(--text-soft)]" />
-              <span className="truncate">{chat.title || "Untitled"}</span>
-            </button>
+            <div key={chat.id} className="group flex items-center">
+              {renamingChatId === chat.id ? (
+                <div className="flex items-center gap-1 w-full px-2 py-1" onClick={(e) => e.stopPropagation()}>
+                  <MessageSquare size={10} className="shrink-0 text-[var(--text-soft)]" />
+                  <input
+                    ref={chatInputRef}
+                    type="text"
+                    value={chatRenameValue}
+                    onChange={(e) => setChatRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleChatRenameSubmit(chat.id);
+                      }
+                      if (e.key === "Escape") {
+                        setRenamingChatId(null);
+                      }
+                    }}
+                    className="min-w-0 flex-1 rounded border border-[var(--brand)] bg-[var(--background)] px-1.5 py-0.5 text-[11px] text-[var(--text-primary)] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleChatRenameSubmit(chat.id)}
+                    className="rounded p-0.5 text-emerald-500 hover:bg-[var(--surface-hover)]"
+                  >
+                    <Check size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRenamingChatId(null)}
+                    className="rounded p-0.5 text-[var(--text-soft)] hover:bg-[var(--surface-hover)]"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectChat(chat.id);
+                      onNavigate?.();
+                    }}
+                    className={`flex flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11px] transition min-w-0 ${
+                      currentChatId === chat.id
+                        ? "bg-[var(--brand-subtle)] text-[var(--text-primary)]"
+                        : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
+                    }`}
+                  >
+                    <MessageSquare size={10} className="shrink-0 text-[var(--text-soft)]" />
+                    <span className="truncate">{chat.title || "Untitled"}</span>
+                  </button>
+                  <ItemMenu
+                    onRenameClick={() => {
+                      setChatRenameValue(chat.title || "");
+                      setRenamingChatId(chat.id);
+                    }}
+                    onDeleteClick={() => onDeleteChat?.(chat.id)}
+                  />
+                </>
+              )}
+            </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function RecentChatItem({
+  chat,
+  isActive,
+  isSignedIn,
+  onSelectChat,
+  onNavigate,
+  onRenameChat,
+  onDeleteChat,
+}: {
+  chat: ChatSummary;
+  isActive: boolean;
+  isSignedIn: boolean;
+  onSelectChat: (chatId: string) => void;
+  onNavigate?: () => void;
+  onRenameChat?: (chatId: string, newTitle: string) => void;
+  onDeleteChat?: (chatId: string) => void;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [renameVal, setRenameVal] = useState(chat.title || "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [renaming]);
+
+  const handleSubmit = () => {
+    const trimmed = renameVal.trim();
+    if (trimmed.length >= 1) onRenameChat?.(chat.id, trimmed);
+    setRenaming(false);
+  };
+
+  return (
+    <div
+      className={`group flex items-center rounded-md px-2 py-1.5 text-left transition ${
+        isActive ? "bg-[var(--surface-alt)]" : "hover:bg-[var(--surface-alt)]"
+      }`}
+    >
+      {renaming ? (
+        <div className="flex items-center gap-1 w-full" onClick={(e) => e.stopPropagation()}>
+          <MessageSquare size={11} className="shrink-0 text-[var(--text-soft)]" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={renameVal}
+            onChange={(e) => setRenameVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
+              }
+              if (e.key === "Escape") setRenaming(false);
+            }}
+            className="min-w-0 flex-1 rounded border border-[var(--brand)] bg-[var(--background)] px-1.5 py-0.5 text-xs text-[var(--text-primary)] outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="rounded p-0.5 text-emerald-500 hover:bg-[var(--surface-hover)]"
+          >
+            <Check size={11} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setRenaming(false)}
+            className="rounded p-0.5 text-[var(--text-soft)] hover:bg-[var(--surface-hover)]"
+          >
+            <X size={11} />
+          </button>
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              onSelectChat(chat.id);
+              onNavigate?.();
+            }}
+            className="flex-1 min-w-0 grid gap-0.5 text-left"
+          >
+            <span className="flex items-center gap-1.5">
+              <MessageSquare size={11} className="shrink-0 text-[var(--text-soft)]" />
+              <span className="truncate text-xs font-medium text-[var(--text-primary)]">
+                {chat.title || "Untitled"}
+              </span>
+            </span>
+            <span className="truncate pl-[18px] text-[10px] text-[var(--text-soft)]">
+              {chat.last_model || ""}{" "}
+              {chat.last_message ? `· ${chat.last_message}` : ""}
+            </span>
+          </button>
+          {isSignedIn && (
+            <ItemMenu
+              onRenameClick={() => {
+                setRenameVal(chat.title || "");
+                setRenaming(true);
+              }}
+              onDeleteClick={() => onDeleteChat?.(chat.id)}
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -287,6 +466,8 @@ export function ChatSidebar({
   onNavigate,
   onRenameFolder,
   onDeleteFolder,
+  onDeleteChat,
+  onRenameChat,
 }: ChatSidebarProps) {
   const isSignedIn = Boolean(user);
 
@@ -358,7 +539,7 @@ export function ChatSidebar({
             <button
               type="button"
               onClick={onCreateFolder}
-              className="rounded-md bg-[var(--brand)] px-2 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand-hover)]"
+              className="brand-gradient rounded-md px-2 py-1.5 text-xs font-medium text-white transition"
             >
               Add
             </button>
@@ -392,6 +573,8 @@ export function ChatSidebar({
                 onNavigate={onNavigate}
                 onRenameFolder={onRenameFolder}
                 onDeleteFolder={onDeleteFolder}
+                onDeleteChat={onDeleteChat}
+                onRenameChat={onRenameChat}
               />
             ))}
 
@@ -414,33 +597,16 @@ export function ChatSidebar({
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
         <div className="grid gap-0.5">
           {chats.map((chat) => (
-            <button
+            <RecentChatItem
               key={chat.id}
-              type="button"
-              onClick={() => {
-                onSelectChat(chat.id);
-                onNavigate?.();
-              }}
-              className={`grid gap-0.5 rounded-md px-2 py-1.5 text-left transition ${
-                currentChatId === chat.id
-                  ? "bg-[var(--surface-alt)]"
-                  : "hover:bg-[var(--surface-alt)]"
-              }`}
-            >
-              <span className="flex items-center gap-1.5">
-                <MessageSquare
-                  size={11}
-                  className="shrink-0 text-[var(--text-soft)]"
-                />
-                <span className="truncate text-xs font-medium text-[var(--text-primary)]">
-                  {chat.title || "Untitled"}
-                </span>
-              </span>
-              <span className="truncate pl-[18px] text-[10px] text-[var(--text-soft)]">
-                {chat.last_model || ""}{" "}
-                {chat.last_message ? `· ${chat.last_message}` : ""}
-              </span>
-            </button>
+              chat={chat}
+              isActive={currentChatId === chat.id}
+              isSignedIn={isSignedIn}
+              onSelectChat={onSelectChat}
+              onNavigate={onNavigate}
+              onRenameChat={onRenameChat}
+              onDeleteChat={onDeleteChat}
+            />
           ))}
 
           {!chats.length && (
@@ -463,7 +629,10 @@ export function ChatSidebar({
           </div>
         ) : user ? (
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-[10px] font-bold text-white">
+            <div
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              style={{ background: BRAND_GRADIENT }}
+            >
               {user.name?.charAt(0)?.toUpperCase() || "U"}
             </div>
             <div className="min-w-0">
@@ -479,7 +648,7 @@ export function ChatSidebar({
           <button
             type="button"
             onClick={onOpenAuth}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-2 text-xs font-medium text-white hover:bg-[var(--brand-hover)]"
+            className="brand-gradient flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-white transition"
           >
             <LogIn size={14} />
             Sign In

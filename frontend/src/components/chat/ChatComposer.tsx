@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { ArrowUp } from "lucide-react";
 
 import { APP_NAME } from "@/lib/constants";
+import { BRAND_GRADIENT, BRAND_GRADIENT_HOVER } from "@/lib/brand";
 
 interface ChatComposerProps {
   value: string;
@@ -50,7 +51,8 @@ export function ChatComposer({ value, disabled, onChange, onSend }: ChatComposer
           type="button"
           onClick={onSend}
           disabled={!canSend}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--brand)] text-white transition hover:bg-[var(--brand-hover)] disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white transition disabled:cursor-not-allowed disabled:opacity-30"
+          style={{ background: canSend ? BRAND_GRADIENT : undefined }}
           aria-label="Send message"
         >
           <ArrowUp size={16} />

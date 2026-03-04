@@ -6,6 +6,8 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { BRAND_GRADIENT } from "@/lib/brand";
+
 interface MessageBubbleProps {
   role: "user" | "assistant";
   content: string;
@@ -207,15 +209,18 @@ export function MessageBubble({
 
   if (!isAssistant) {
     return (
-      <div className="animate-fade-in flex justify-end py-2">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--brand)] px-4 py-2.5 text-sm leading-relaxed text-white select-text sm:max-w-[65%]">
-          {content}
-        </div>
-        {timestamp && (
-          <div className="mt-1 flex justify-end">
-            <span className="text-[10px] text-[var(--text-soft)]">{formatTimestamp(timestamp)}</span>
+      <div className="animate-fade-in py-2">
+        <div className="flex flex-col items-end gap-1">
+          <div
+            className="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed text-white select-text sm:max-w-[65%]"
+            style={{ background: BRAND_GRADIENT }}
+          >
+            {content}
           </div>
-        )}
+          {timestamp && (
+            <span className="text-[10px] text-[var(--text-soft)] mr-1">{formatTimestamp(timestamp)}</span>
+          )}
+        </div>
       </div>
     );
   }
@@ -232,21 +237,24 @@ export function MessageBubble({
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--text-soft)]">
-        {!loading && showModelInfo && modelUsed && (
-          <div className="flex items-center gap-1.5">
-            <Cpu size={10} />
-            <span className="font-medium uppercase">{modelUsed}</span>
-            {detail && <span>&middot; {detail}</span>}
-          </div>
-        )}
-        {!loading && timestamp && (
-          <span className={showModelInfo && modelUsed ? "ml-1" : ""}>
-            {showModelInfo && modelUsed && <span>&middot; </span>}
-            {formatTimestamp(timestamp)}
-          </span>
-        )}
-      </div>
+      {/* Model info + timestamp — shown below the response */}
+      {!loading && (
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--text-soft)]">
+          {showModelInfo && modelUsed && (
+            <>
+              <Cpu size={10} />
+              <span className="font-medium uppercase">{modelUsed}</span>
+              {detail && <span>&middot; {detail}</span>}
+            </>
+          )}
+          {timestamp && (
+            <>
+              {showModelInfo && modelUsed && <span>&middot;</span>}
+              <span>{formatTimestamp(timestamp)}</span>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

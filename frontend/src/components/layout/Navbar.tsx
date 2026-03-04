@@ -10,6 +10,8 @@ import { useAlerts } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { APP_NAME } from "@/lib/constants";
+import { BRAND_GRADIENT, BRAND_GRADIENT_HOVER, BRAND_LOGO, BRAND_LOGO_SIZE, BRAND_NAME } from "@/lib/brand";
+import Image from "next/image";
 
 const publicNavItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
@@ -79,10 +81,15 @@ export function Navbar() {
             </button>
 
             <Link href="/chat" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--brand)] text-white">
-                <span className="text-xs font-bold">S</span>
-              </div>
-              <span className="hidden text-sm font-semibold text-[var(--text-primary)] sm:block">{APP_NAME}</span>
+              <Image
+                src={BRAND_LOGO}
+                alt={BRAND_NAME}
+                width={BRAND_LOGO_SIZE}
+                height={BRAND_LOGO_SIZE}
+                className="rounded-lg"
+                priority
+              />
+              <span className="hidden text-sm font-semibold text-[var(--text-primary)] sm:block">{BRAND_NAME}</span>
             </Link>
           </div>
 
@@ -127,7 +134,10 @@ export function Navbar() {
                   className="flex h-8 items-center gap-2 rounded-lg px-1.5 text-[var(--text-primary)] transition hover:bg-[var(--surface-alt)]"
                   aria-label="Account menu"
                 >
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--brand)] text-[10px] font-bold text-white">
+                  <div
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                    style={{ background: BRAND_GRADIENT }}
+                  >
                     {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </div>
                   <span className="hidden max-w-[100px] truncate text-xs font-medium sm:inline">{user?.name}</span>
@@ -165,7 +175,7 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={() => setAuthModalOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--brand-hover)]"
+                className="brand-gradient inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition"
               >
                 <User size={14} />
                 Sign In
@@ -190,7 +200,10 @@ export function Navbar() {
           }`}
         >
           <div className="mb-6 flex items-center justify-between">
-            <span className="text-sm font-semibold text-[var(--text-primary)]">{APP_NAME}</span>
+            <div className="flex items-center gap-2">
+              <Image src={BRAND_LOGO} alt={BRAND_NAME} width={22} height={22} className="rounded-md" />
+              <span className="text-sm font-semibold text-[var(--text-primary)]">{BRAND_NAME}</span>
+            </div>
             <button
               type="button"
               onClick={() => setMobileNavOpen(false)}

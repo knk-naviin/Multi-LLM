@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PanelLeft, Plus, ChevronDown, ChevronRight, FolderOpen, Home } from "lucide-react";
+import { PanelLeft, Plus, ChevronDown, ChevronRight, FolderOpen, Home, AlertTriangle } from "lucide-react";
 
 import { AuthModal } from "@/components/auth/AuthModal";
 import { ChatComposer } from "@/components/chat/ChatComposer";
@@ -142,6 +142,11 @@ function ChatWorkspace() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(LOADING_MESSAGES[0]);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const sessionRestoredRef = useRef(false);
@@ -367,24 +372,71 @@ function ChatWorkspace() {
     }
   };
 
-  const deleteFolder = async (folderId: string) => {
+  const deleteFolder = (folderId: string) => {
     if (!token) return;
-    const confirmed = window.confirm("Delete this folder? Chats inside will be moved to All Chats.");
-    if (!confirmed) return;
+    setConfirmModal({
+      title: "Delete Folder",
+      message: "Are you sure you want to delete this folder? Chats inside will be moved to All Chats.",
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await apiRequest<{ ok: boolean }>(`/api/folders/${folderId}`, {
+            method: "DELETE",
+            token,
+          });
+          if (selectedFolderId === folderId) {
+            setSelectedFolderId(null);
+          }
+          const updated = await apiRequest<{ ok: boolean; folders: Folder[] }>("/api/folders", { token });
+          setFolders(updated.folders);
+          await loadChats(selectedFolderId === folderId ? null : selectedFolderId);
+          showAlert("Folder deleted.", "success");
+        } catch (error) {
+          showAlert(error instanceof Error ? error.message : "Failed to delete folder");
+        }
+      },
+    });
+  };
+
+  const deleteChat = (chatId: string) => {
+    if (!token) return;
+    setConfirmModal({
+      title: "Delete Chat",
+      message: "Are you sure you want to delete this chat? This action cannot be undone.",
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await apiRequest<{ ok: boolean }>(`/api/chats/${chatId}`, {
+            method: "DELETE",
+            token,
+          });
+          if (currentChatId === chatId) {
+            startNewChat();
+          }
+          await loadChats(selectedFolderId);
+          showAlert("Chat deleted.", "success");
+        } catch (error) {
+          showAlert(error instanceof Error ? error.message : "Failed to delete chat");
+        }
+      },
+    });
+  };
+
+  const renameChat = async (chatId: string, newTitle: string) => {
+    if (!token) return;
     try {
-      await apiRequest<{ ok: boolean }>(`/api/folders/${folderId}`, {
-        method: "DELETE",
+      await apiRequest<{ ok: boolean }>(`/api/chats/${chatId}`, {
+        method: "PATCH",
         token,
+        body: { title: newTitle },
       });
-      if (selectedFolderId === folderId) {
-        setSelectedFolderId(null);
+      if (currentChatId === chatId) {
+        setCurrentChatTitle(newTitle);
       }
-      const updated = await apiRequest<{ ok: boolean; folders: Folder[] }>("/api/folders", { token });
-      setFolders(updated.folders);
-      await loadChats(selectedFolderId === folderId ? null : selectedFolderId);
-      showAlert("Folder deleted.", "success");
+      await loadChats(selectedFolderId);
+      showAlert("Chat renamed.", "success");
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : "Failed to delete folder");
+      showAlert(error instanceof Error ? error.message : "Failed to rename chat");
     }
   };
 
@@ -534,6 +586,8 @@ function ChatWorkspace() {
             onOpenAuth={() => setAuthModalOpen(true)}
             onRenameFolder={renameFolder}
             onDeleteFolder={deleteFolder}
+            onDeleteChat={deleteChat}
+            onRenameChat={renameChat}
           />
         </div>
 
@@ -706,11 +760,50 @@ function ChatWorkspace() {
             onNavigate={() => setMobileSidebarOpen(false)}
             onRenameFolder={renameFolder}
             onDeleteFolder={deleteFolder}
+            onDeleteChat={deleteChat}
+            onRenameChat={renameChat}
           />
         </div>
       </div>
 
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setConfirmModal(null)}
+        >
+          <div
+            className="animate-fade-in w-full max-w-sm overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+                <AlertTriangle size={20} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-[var(--text-primary)]">{confirmModal.title}</h3>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">{confirmModal.message}</p>
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-alt)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmModal.onConfirm}
+                  className="flex-1 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

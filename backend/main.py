@@ -107,6 +107,11 @@ class FolderUpdateRequest(BaseModel):
     description: Optional[str] = None
 
 
+class ChatUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    folder_id: Optional[str] = None
+
+
 class SettingsNotificationsUpdateRequest(BaseModel):
     email_digest: Optional[bool] = None
     browser_push: Optional[bool] = None
@@ -1108,6 +1113,31 @@ async def delete_chat(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Chat not found")
     return {"ok": True, "message": "Chat deleted"}
+
+
+@app.patch("/api/chats/{chat_id}")
+async def update_chat(
+    chat_id: str,
+    body: ChatUpdateRequest,
+    current_auth=Depends(get_current_auth),
+    db=Depends(get_db),
+):
+    chat_oid = parse_object_id(chat_id, "chat_id")
+    update_fields: Dict[str, Any] = {"updated_at": utc_now()}
+    if body.title is not None:
+        update_fields["title"] = body.title.strip()[:120]
+    if body.folder_id is not None:
+        folder_oid = parse_object_id(body.folder_id, "folder_id") if body.folder_id else None
+        update_fields["folder_id"] = folder_oid
+        update_fields["project_id"] = folder_oid
+    result = await db.chats.update_one(
+        {"_id": chat_oid, "user_id": current_auth["user"]["_id"]},
+        {"$set": update_fields},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    updated = await db.chats.find_one({"_id": chat_oid})
+    return {"ok": True, "chat": serialize_chat_summary(updated)}
 
 
 @app.delete("/api/account")

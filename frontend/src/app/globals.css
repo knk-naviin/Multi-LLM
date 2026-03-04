@@ -388,3 +388,20 @@ html, body {
   overflow-x: hidden;
   max-width: 100vw;
 }
+
+/* ─── Brand gradient ─── */
+.brand-gradient {
+  background: linear-gradient(180deg, #878274, #24221a);
+  color: #ffffff;
+}
+
+.brand-gradient:hover {
+  background: linear-gradient(180deg, #9a9588, #2f2d22);
+}
+
+.brand-gradient-text {
+  background: linear-gradient(180deg, #878274, #24221a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
