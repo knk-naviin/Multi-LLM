@@ -17,6 +17,7 @@ import { useAlerts } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { apiRequest } from "@/lib/api";
+import { THEME_KEY } from "@/lib/constants";
 import { setAutoStore, setPreferredModel } from "@/lib/preferences";
 import type { AppSettings, AuthSession, ModelName, ThemeName, UiDensity, UiLanguage } from "@/lib/types";
 
@@ -25,9 +26,14 @@ interface SettingsResponse {
   settings: AppSettings;
 }
 
+function getStoredTheme(): ThemeName {
+  if (typeof window === "undefined") return "dark";
+  return window.localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+}
+
 const defaultSettings: AppSettings = {
   preferred_model: null,
-  theme: "dark",
+  theme: typeof window !== "undefined" ? getStoredTheme() : "dark",
   auto_store_chats: true,
   language: "en",
   density: "comfortable",
@@ -96,9 +102,12 @@ function toReadableDate(value?: string | null): string {
 export function SettingsPanel() {
   const { showAlert } = useAlerts();
   const { token, user, loading: authLoading, signOut } = useAuth();
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
-  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const [settings, setSettings] = useState<AppSettings>(() => ({
+    ...defaultSettings,
+    theme: theme as ThemeName,
+  }));
   const [sessions, setSessions] = useState<AuthSession[]>([]);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -135,7 +144,8 @@ export function SettingsPanel() {
       .finally(() => {
         setLoadingSettings(false);
       });
-  }, [setTheme, showAlert, token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAlert, token]);
 
   const patchSettings = (updater: (current: AppSettings) => AppSettings) => {
     setSettings((current) => updater(current));
