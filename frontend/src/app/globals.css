@@ -405,3 +405,32 @@ html, body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* ─── Agent Chat Dropdown animations ─── */
+.agent-chat-dropdown {
+  will-change: max-height, opacity;
+}
+
+.agent-chat-msg {
+  animation: agentMsgSlideIn 0.25s ease-out forwards;
+}
+
+@keyframes agentMsgSlideIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── AI Council typing dots ─── */
+.typing-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: typingBounce 1.2s ease-in-out infinite;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}

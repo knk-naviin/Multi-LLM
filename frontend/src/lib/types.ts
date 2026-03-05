@@ -43,6 +43,16 @@ export interface User {
   };
 }
 
+export interface AgentChatMessage {
+  agent: string;
+  name: string;
+  role: string;
+  message: string;
+  response_time: number;
+  tokens: number;
+  error?: string | null;
+}
+
 export interface UiMessage {
   id: string;
   role: "user" | "assistant";
@@ -52,6 +62,10 @@ export interface UiMessage {
   loading?: boolean;
   animateTypewriter?: boolean;
   timestamp?: number;
+  isBestAnswer?: boolean;
+  agentChat?: AgentChatMessage[];
+  synthesizedBy?: string;
+  responseTimeSeconds?: number;
 }
 
 export interface Project {
@@ -96,6 +110,55 @@ export interface ChatThread {
   messages: ChatMessage[];
   created_at?: string;
   updated_at?: string;
+}
+
+/* ─── AI Council Types ─── */
+
+export type CouncilAgent = "gpt" | "gemini" | "claude" | "grok";
+
+export interface CouncilAgentInfo {
+  key: CouncilAgent;
+  name: string;
+  role: string;
+  color: string;
+}
+
+export interface CouncilMessage {
+  id: string;
+  type:
+    | "user"
+    | "agent_response"
+    | "round_divider"
+    | "vote_result"
+    | "synthesis"
+    | "typing"
+    | "done";
+  agent?: CouncilAgent;
+  agentRole?: string;
+  round?: number;
+  roundName?: string;
+  responseType?: string;
+  content: string;
+  responseTime?: number;
+  tokens?: number;
+  timestamp: number;
+  votes?: Record<string, string>;
+  tally?: Record<string, number>;
+  error?: string;
+  metrics?: CouncilAgentMetric[];
+  totalTime?: number;
+  totalTokens?: number;
+}
+
+export interface CouncilAgentMetric {
+  agent: string;
+  name: string;
+  role: string;
+  color: string;
+  avg_response_time: number;
+  total_tokens: number;
+  errors: number;
+  votes_received: number;
 }
 
 export interface ChatCompletionResponse {

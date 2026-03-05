@@ -8,7 +8,7 @@ function backendBaseUrl(): string {
   return fromEnv.replace(/\/$/, "");
 }
 
-async function forward(request: NextRequest, pathParts: string[]): Promise<NextResponse> {
+async function forward(request: NextRequest, pathParts: string[]): Promise<Response> {
   const target = new URL(`${backendBaseUrl()}/${pathParts.join("/")}`);
   request.nextUrl.searchParams.forEach((value, key) => target.searchParams.set(key, value));
 
@@ -30,11 +30,24 @@ async function forward(request: NextRequest, pathParts: string[]): Promise<NextR
     cache: "no-store",
   });
 
+  // Stream SSE responses through without buffering
+  const upstreamContentType = upstream.headers.get("content-type") || "";
+  if (upstreamContentType.includes("text/event-stream") && upstream.body) {
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
+  }
+
   const payload = await upstream.text();
   return new NextResponse(payload, {
     status: upstream.status,
     headers: {
-      "content-type": upstream.headers.get("content-type") || "application/json",
+      "content-type": upstreamContentType || "application/json",
     },
   });
 }

@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -45,6 +45,8 @@ from models.claude import call_claude
 from models.gemini import GeminiRateLimitError, call_gemini, can_call_gemini
 from models.gpt import call_gpt
 from router import rank_models
+from services.ai_council import ConversationOrchestrator, CouncilConfig
+from services.best_answer import BestAnswerEngine
 
 app = FastAPI(title="Swastik Ai API", version="2.0.0")
 
@@ -1209,6 +1211,79 @@ async def benchmark_model_status():
 @app.post("/benchmark-model/reload")
 async def benchmark_model_reload():
     return benchmark_model.reload()
+
+
+# ── Best Answer Mode — Multi-Agent Synthesis ─────────────────────────
+
+
+@app.post("/api/chat/best-answer")
+async def chat_best_answer(
+    payload: ChatCompleteRequest,
+    request: Request,
+    optional_auth=Depends(get_optional_auth),
+):
+    prompt = _extract_prompt(payload)
+
+    engine = BestAnswerEngine()
+    result = await engine.generate(prompt)
+
+    stored_chat_id = None
+    if payload.store:
+        db = getattr(request.app.state, "db", None)
+        if db is None:
+            raise HTTPException(
+                status_code=503,
+                detail="MongoDB unavailable. Disable Auto Store and retry.",
+            )
+        if not optional_auth:
+            raise HTTPException(
+                status_code=401,
+                detail="Sign in required to store chats",
+            )
+        stored_chat_id = await _persist_chat_turn(
+            db=db,
+            user_id=optional_auth["user"]["_id"],
+            prompt=prompt,
+            assistant_response=result["final_answer"],
+            model_selected=result.get("synthesized_by", "best-answer"),
+            chat_id=payload.chat_id,
+            folder_id=payload.folder_id,
+            project_id=payload.project_id,
+        )
+
+    return {"ok": True, **result, "chat_id": stored_chat_id}
+
+
+# ── AI Council — Multi-Agent Debate ──────────────────────────────────
+
+
+class AICouncilRequest(BaseModel):
+    prompt: str
+    enabled_agents: Optional[list[str]] = None
+    max_rounds: int = 5
+
+
+@app.post("/api/ai-council")
+async def ai_council(payload: AICouncilRequest):
+    prompt = (payload.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required")
+
+    config = CouncilConfig(
+        enabled_agents=payload.enabled_agents,
+        max_rounds=max(1, min(payload.max_rounds, 5)),
+    )
+    orchestrator = ConversationOrchestrator(config)
+
+    return StreamingResponse(
+        orchestrator.run_debate(prompt),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/health")

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Moon, Settings, Sun, LogOut, Info, MessageSquare, User, X } from "lucide-react";
+import { Menu, Moon, Settings, Sun, LogOut, Info, MessageSquare, User, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -15,6 +15,7 @@ import Image from "next/image";
 
 const publicNavItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/council", label: "Council", icon: Users },
   { href: "/about", label: "About", icon: Info },
 ];
 
@@ -30,12 +31,17 @@ export function Navbar() {
   const { showAlert } = useAlerts();
   const { theme, toggleTheme } = useTheme();
 
+  const [mounted, setMounted] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const closeOnOutside = (event: MouseEvent) => {
@@ -121,9 +127,9 @@ export function Navbar() {
               type="button"
               onClick={toggleTheme}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition hover:bg-[var(--surface-alt)] hover:text-[var(--text-primary)]"
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              title={mounted ? `Switch to ${theme === "dark" ? "light" : "dark"} mode` : "Toggle theme"}
             >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+              {mounted ? (theme === "dark" ? <Sun size={16} /> : <Moon size={16} />) : <div className="h-4 w-4" />}
             </button>
 
             {isAuthenticated ? (

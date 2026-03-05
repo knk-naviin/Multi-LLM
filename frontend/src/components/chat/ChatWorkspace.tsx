@@ -21,6 +21,7 @@ import {
   setShowModelInfo as saveShowModelInfo,
 } from "@/lib/preferences";
 import type {
+  AgentChatMessage,
   ChatCompletionResponse,
   ChatSummary,
   ChatThread,
@@ -43,7 +44,14 @@ function saveSession(chatId: string | null, title: string | null, messages: UiMe
     // Only store if there are real messages (not just welcome)
     const hasRealMessages = messages.some((m) => m.id !== "welcome-assistant");
     if (hasRealMessages) {
-      sessionStorage.setItem(SESSION_MESSAGES, JSON.stringify(messages));
+      // Strip transient flags so restored messages render instantly (no re-animation)
+      const cleaned = messages
+        .filter((m) => !m.loading) // drop any in-flight loading placeholders
+        .map((m) => ({
+          ...m,
+          animateTypewriter: false,
+        }));
+      sessionStorage.setItem(SESSION_MESSAGES, JSON.stringify(cleaned));
     } else {
       sessionStorage.removeItem(SESSION_MESSAGES);
     }
@@ -103,6 +111,13 @@ const LOADING_MESSAGES = [
   "Generating response...",
 ];
 
+const BEST_ANSWER_LOADING = [
+  "Our AI agents are collaborating...",
+  "Multiple models analyzing your question...",
+  "Agents discussing their perspectives...",
+  "Synthesizing the best answer...",
+];
+
 function SkeletonMessage() {
   return (
     <div className="animate-fade-in py-2">
@@ -142,6 +157,7 @@ function ChatWorkspace() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(LOADING_MESSAGES[0]);
+  const [bestAnswerMode, setBestAnswerMode] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     message: string;
@@ -281,16 +297,17 @@ function ChatWorkspace() {
   // Cycle loading messages while waiting for response
   useEffect(() => {
     if (!sending) return;
+    const msgs = bestAnswerMode ? BEST_ANSWER_LOADING : LOADING_MESSAGES;
     loadingMsgIndexRef.current = 0;
-    setLoadingDetail(LOADING_MESSAGES[0]);
+    setLoadingDetail(msgs[0]);
 
     const interval = setInterval(() => {
-      loadingMsgIndexRef.current = (loadingMsgIndexRef.current + 1) % LOADING_MESSAGES.length;
-      setLoadingDetail(LOADING_MESSAGES[loadingMsgIndexRef.current]);
-    }, 2500);
+      loadingMsgIndexRef.current = (loadingMsgIndexRef.current + 1) % msgs.length;
+      setLoadingDetail(msgs[loadingMsgIndexRef.current]);
+    }, bestAnswerMode ? 4000 : 2500);
 
     return () => clearInterval(interval);
-  }, [sending]);
+  }, [sending, bestAnswerMode]);
 
   // Listen for settings changes (e.g. show_model_info toggled in settings page)
   useEffect(() => {
@@ -500,7 +517,7 @@ function ChatWorkspace() {
       role: "assistant",
       content: "",
       loading: true,
-      detail: loadingDetail,
+      detail: bestAnswerMode ? BEST_ANSWER_LOADING[0] : loadingDetail,
     };
 
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
@@ -509,48 +526,99 @@ function ChatWorkspace() {
     const isFirstMessage = !currentChatTitle;
 
     try {
-      const response = await apiRequest<ChatCompletionResponse>("/api/chat/complete", {
-        method: "POST",
-        token,
-        body: {
-          prompt: text,
-          forced_model: preferredModel,
-          store: shouldStore,
-          chat_id: shouldStore ? currentChatId : null,
-          folder_id: shouldStore ? selectedFolderId : null,
-        },
-      });
+      if (bestAnswerMode) {
+        // ── Best Answer Mode ──
+        interface BestAnswerResponse {
+          ok: boolean;
+          final_answer: string;
+          synthesized_by: string;
+          agent_chat: AgentChatMessage[];
+          response_time_seconds: number;
+          chat_id?: string | null;
+        }
 
-      const fallback =
-        response.fallback_errors && response.fallback_errors.length
-          ? ` | Fallback: ${response.fallback_errors[0]}`
-          : "";
+        const response = await apiRequest<BestAnswerResponse>("/api/chat/best-answer", {
+          method: "POST",
+          token,
+          body: {
+            prompt: text,
+            store: shouldStore,
+            chat_id: shouldStore ? currentChatId : null,
+            folder_id: shouldStore ? selectedFolderId : null,
+          },
+        });
 
-      const assistantMessage: UiMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: response.response,
-        modelUsed: response.model_selected,
-        detail: `${response.domain || "general"}${fallback}`,
-        animateTypewriter: true,
-        timestamp: Date.now(),
-      };
+        const assistantMessage: UiMessage = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: response.final_answer,
+          modelUsed: response.synthesized_by,
+          detail: "Best Answer",
+          animateTypewriter: true,
+          timestamp: Date.now(),
+          isBestAnswer: true,
+          agentChat: response.agent_chat,
+          synthesizedBy: response.synthesized_by,
+          responseTimeSeconds: response.response_time_seconds,
+        };
 
-      setMessages((prev) => {
-        const withoutLoader = prev.filter((item) => item.id !== loadingId);
-        return [...withoutLoader, assistantMessage];
-      });
+        setMessages((prev) => {
+          const withoutLoader = prev.filter((item) => item.id !== loadingId);
+          return [...withoutLoader, assistantMessage];
+        });
 
-      // Auto-name the chat via model on first message
-      if (isFirstMessage) {
-        setCurrentChatTitle(text.slice(0, 40) + (text.length > 40 ? "..." : ""));
-        // Fire background title generation
-        generateChatTitle(text, response.response);
-      }
+        if (isFirstMessage) {
+          setCurrentChatTitle(text.slice(0, 40) + (text.length > 40 ? "..." : ""));
+          generateChatTitle(text, response.final_answer);
+        }
 
-      if (response.chat_id && token) {
-        setCurrentChatId(response.chat_id);
-        await loadChats(selectedFolderId);
+        if (response.chat_id && token) {
+          setCurrentChatId(response.chat_id);
+          await loadChats(selectedFolderId);
+        }
+      } else {
+        // ── Normal Mode ──
+        const response = await apiRequest<ChatCompletionResponse>("/api/chat/complete", {
+          method: "POST",
+          token,
+          body: {
+            prompt: text,
+            forced_model: preferredModel,
+            store: shouldStore,
+            chat_id: shouldStore ? currentChatId : null,
+            folder_id: shouldStore ? selectedFolderId : null,
+          },
+        });
+
+        const fallback =
+          response.fallback_errors && response.fallback_errors.length
+            ? ` | Fallback: ${response.fallback_errors[0]}`
+            : "";
+
+        const assistantMessage: UiMessage = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: response.response,
+          modelUsed: response.model_selected,
+          detail: `${response.domain || "general"}${fallback}`,
+          animateTypewriter: true,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => {
+          const withoutLoader = prev.filter((item) => item.id !== loadingId);
+          return [...withoutLoader, assistantMessage];
+        });
+
+        if (isFirstMessage) {
+          setCurrentChatTitle(text.slice(0, 40) + (text.length > 40 ? "..." : ""));
+          generateChatTitle(text, response.response);
+        }
+
+        if (response.chat_id && token) {
+          setCurrentChatId(response.chat_id);
+          await loadChats(selectedFolderId);
+        }
       }
     } catch (error) {
       setMessages((prev) => prev.filter((item) => item.id !== loadingId));
@@ -705,6 +773,10 @@ function ChatWorkspace() {
                     animateTypewriter={item.animateTypewriter}
                     showModelInfo={showModelInfo}
                     timestamp={item.timestamp}
+                    isBestAnswer={item.isBestAnswer}
+                    agentChat={item.agentChat}
+                    synthesizedBy={item.synthesizedBy}
+                    responseTimeSeconds={item.responseTimeSeconds}
                   />
                 ))
               )}
@@ -713,7 +785,14 @@ function ChatWorkspace() {
           </div>
 
           {/* Composer */}
-          <ChatComposer value={prompt} onChange={setPrompt} onSend={sendPrompt} disabled={sending} />
+          <ChatComposer
+            value={prompt}
+            onChange={setPrompt}
+            onSend={sendPrompt}
+            disabled={sending}
+            bestAnswerMode={bestAnswerMode}
+            onToggleBestAnswer={setBestAnswerMode}
+          />
         </div>
       </div>
 

@@ -7,6 +7,8 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { BRAND_GRADIENT } from "@/lib/brand";
+import { AgentChatDropdown } from "@/components/chat/AgentChatDropdown";
+import type { AgentChatMessage } from "@/lib/types";
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -18,6 +20,10 @@ interface MessageBubbleProps {
   animateTypewriter?: boolean;
   showModelInfo?: boolean;
   timestamp?: number;
+  isBestAnswer?: boolean;
+  agentChat?: AgentChatMessage[];
+  synthesizedBy?: string;
+  responseTimeSeconds?: number;
 }
 
 function CodeRenderer({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -185,6 +191,10 @@ export function MessageBubble({
   animateTypewriter,
   showModelInfo = true,
   timestamp,
+  isBestAnswer,
+  agentChat,
+  synthesizedBy,
+  responseTimeSeconds,
 }: MessageBubbleProps) {
   const isAssistant = role === "assistant";
 
@@ -247,13 +257,28 @@ export function MessageBubble({
               {detail && <span>&middot; {detail}</span>}
             </>
           )}
-          {timestamp && (
+          {isBestAnswer && (
             <>
               {showModelInfo && modelUsed && <span>&middot;</span>}
+              <span className="text-amber-500 font-medium">Best Answer</span>
+            </>
+          )}
+          {timestamp && (
+            <>
+              {(showModelInfo && modelUsed) || isBestAnswer ? <span>&middot;</span> : null}
               <span>{formatTimestamp(timestamp)}</span>
             </>
           )}
         </div>
+      )}
+
+      {/* Agent Chat Dropdown — only for best answer responses */}
+      {!loading && isBestAnswer && agentChat && agentChat.length > 0 && (
+        <AgentChatDropdown
+          agentChat={agentChat}
+          synthesizedBy={synthesizedBy}
+          responseTime={responseTimeSeconds}
+        />
       )}
     </div>
   );
