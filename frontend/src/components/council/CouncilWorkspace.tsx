@@ -17,6 +17,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAlerts } from "@/contexts/AlertContext";
 import { BRAND_GRADIENT, BRAND_NAME } from "@/lib/brand";
@@ -90,7 +91,7 @@ function StreamingMarkdown({
 
   return (
     <div className={`${cls} ${!isDone ? "streaming-cursor" : ""}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{visibleContent}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{visibleContent}</ReactMarkdown>
     </div>
   );
 }
@@ -231,7 +232,7 @@ function AgentBubble({
             <StreamingMarkdown content={content} />
           ) : (
             <div className="prose prose-sm max-w-none text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-p:my-1 prose-pre:bg-[#1e1e1e] prose-pre:text-[#d4d4d4] prose-code:text-[var(--text-primary)] prose-code:before:content-none prose-code:after:content-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{content}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -330,7 +331,7 @@ function SynthesisBubble({ content, agent, responseTime, tokens, animate }: {
           />
         ) : (
           <div className="prose prose-sm max-w-none text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-p:my-1 prose-pre:bg-[#1e1e1e] prose-pre:text-[#d4d4d4] select-text">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{content}</ReactMarkdown>
           </div>
         )}
         <div className="mt-2 flex items-center gap-3 text-[10px] text-[var(--text-soft)]">

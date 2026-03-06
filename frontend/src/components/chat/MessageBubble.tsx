@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Cpu } from "lucide-react";
+import { Cpu } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { BRAND_GRADIENT } from "@/lib/brand";
 import { AgentChatDropdown } from "@/components/chat/AgentChatDropdown";
 import { TaskWorkflowDropdown } from "@/components/chat/TaskWorkflowDropdown";
+import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
 import type { AgentChatMessage, WorkflowStepMessage } from "@/lib/types";
 
 interface MessageBubbleProps {
@@ -30,104 +30,7 @@ interface MessageBubbleProps {
   workflowChat?: WorkflowStepMessage[];
 }
 
-function CodeRenderer({ className, children }: { className?: string; children?: React.ReactNode }) {
-  const [copied, setCopied] = useState(false);
-  const source = String(children ?? "").replace(/\n$/, "");
-  const language = (className || "").replace("language-", "") || "text";
-
-  const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(source);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <div className="my-3 overflow-hidden rounded-lg border border-[var(--border)] max-w-full">
-      <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface-alt)] px-3 py-1.5 text-[11px]">
-        <span className="font-mono font-medium text-[var(--text-muted)]">{language}</span>
-        <button
-          type="button"
-          onClick={copyCode}
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-        >
-          {copied ? <Check size={11} /> : <Copy size={11} />}
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </div>
-      <pre
-        className="overflow-x-auto bg-[#D3D3D3] p-4 text-[13px] leading-6 dark:bg-[#1e1e1e]"
-        style={{ fontFamily: "'Fira Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" }}
-      >
-        <code
-          className="text-[#1e1e1e] dark:text-[#d4d4d4]"
-          style={{ fontFamily: "inherit" }}
-        >
-          {source}
-        </code>
-      </pre>
-    </div>
-  );
-}
-
-const markdownComponents: Components = {
-  code(props) {
-    const { className, children } = props;
-    const source = String(children ?? "");
-
-    if (!source.includes("\n")) {
-      return (
-        <code
-          className="rounded border border-[var(--border)] bg-[#D3D3D3] px-1.5 py-0.5 text-[12.5px] text-[#1e1e1e] dark:bg-[#2d2d2d] dark:text-[#d4d4d4]"
-          style={{ fontFamily: "'Fira Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" }}
-        >
-          {source}
-        </code>
-      );
-    }
-
-    return <CodeRenderer className={className}>{children}</CodeRenderer>;
-  },
-  a(props) {
-    return (
-      <a
-        {...props}
-        target="_blank"
-        rel="noreferrer"
-        className="text-[var(--brand-text)] underline underline-offset-2 hover:opacity-80"
-      />
-    );
-  },
-  table(props) {
-    return (
-      <div className="my-3 overflow-x-auto rounded-lg border border-[var(--border)] max-w-full">
-        <table className="w-full text-sm" {...props} />
-      </div>
-    );
-  },
-  thead(props) {
-    return <thead className="bg-[var(--surface-alt)]" {...props} />;
-  },
-  th(props) {
-    return (
-      <th
-        className="border-b border-[var(--border)] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]"
-        {...props}
-      />
-    );
-  },
-  td(props) {
-    return (
-      <td
-        className="border-b border-[var(--border)] px-3 py-2.5 text-[var(--text-primary)]"
-        {...props}
-      />
-    );
-  },
-};
+const markdownComponents = sharedMarkdownComponents;
 
 function formatTimestamp(ts: number): string {
   const date = new Date(ts);

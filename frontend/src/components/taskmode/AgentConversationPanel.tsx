@@ -5,6 +5,7 @@ import { Clock, Cpu, Trophy } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
 import { BRAND_GRADIENT } from "@/lib/brand";
 import type { AgentConversationMessage } from "@/lib/types";
 
@@ -48,7 +49,7 @@ function StreamingMarkdown({ content }: { content: string }) {
         !isDone ? "streaming-cursor" : ""
       }`}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{visibleContent}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{visibleContent}</ReactMarkdown>
     </div>
   );
 }
@@ -109,7 +110,7 @@ function AgentBubble({
           <StreamingMarkdown content={msg.content} />
         ) : (
           <div className="prose prose-sm max-w-none break-words text-[var(--text-secondary)] prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{msg.content}</ReactMarkdown>
           </div>
         )}
 
@@ -175,7 +176,7 @@ function FinalResultCard({
         <StreamingMarkdown content={content} />
       ) : (
         <div className="prose prose-sm max-w-none break-words text-[var(--text-primary)] prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{content}</ReactMarkdown>
         </div>
       )}
 

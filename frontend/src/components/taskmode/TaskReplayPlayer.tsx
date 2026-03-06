@@ -5,6 +5,7 @@ import { Clock, Cpu, Pause, Play, SkipBack, SkipForward, Trophy } from "lucide-r
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
 import { BRAND_GRADIENT } from "@/lib/brand";
 import type { AgentConversationMessage, TimelineStep } from "@/lib/types";
 
@@ -182,7 +183,7 @@ function StepContentView({
           </span>
         </div>
         <div className="prose prose-sm max-w-none break-words text-[var(--text-primary)] prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{content}</ReactMarkdown>
         </div>
       </div>
     );
@@ -230,7 +231,7 @@ function StepContentView({
       {/* Content */}
       {content ? (
         <div className="prose prose-sm max-w-none break-words text-[var(--text-secondary)] prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{content}</ReactMarkdown>
         </div>
       ) : (
         <p className="text-sm text-[var(--text-soft)] italic">No content for this step.</p>
@@ -440,7 +441,7 @@ export function TaskReplayPlayer({
                   </span>
                 </div>
                 <div className="prose prose-sm max-w-none break-words text-[var(--text-primary)] prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>
                     {finalResult.content}
                   </ReactMarkdown>
                 </div>

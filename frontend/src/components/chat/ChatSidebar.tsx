@@ -9,6 +9,7 @@ import {
   MessageSquare,
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
   MoreVertical,
   Pencil,
   Trash2,
@@ -498,6 +499,172 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const isSignedIn = Boolean(user);
 
+  // Mobile tab state: null = show tabs, "chats" = show all chats, "folders" = show folders
+  const [mobileTab, setMobileTab] = useState<"chats" | "folders" | null>(null);
+
+  /* ─── Desktop layout (no tabs, show everything inline) ─── */
+  if (!showNavLinks) {
+    return (
+      <aside className="flex h-full flex-col bg-[var(--surface)] p-3">
+        {/* New Chat button */}
+        <button
+          type="button"
+          onClick={() => {
+            onStartNewChat();
+            onNavigate?.();
+          }}
+          className="mb-3 flex w-full items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--surface-alt)]"
+        >
+          <Plus size={14} />
+          New Chat
+        </button>
+
+        {/* Folders — only show when signed in */}
+        {isSignedIn && (
+          <div className="mb-1">
+            <div className="mb-1.5 flex items-center justify-between px-1">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">
+                Folders
+              </span>
+            </div>
+
+            <div className="mb-2 flex gap-1.5">
+              <input
+                className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-soft)] focus:border-[var(--brand)] transition-colors"
+                value={folderName}
+                placeholder="New folder..."
+                onChange={(event) => onFolderNameChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    onCreateFolder();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={onCreateFolder}
+                className="brand-gradient rounded-md px-2 py-1.5 text-xs font-medium text-white transition"
+              >
+                Add
+              </button>
+            </div>
+
+            <div className="custom-scrollbar grid max-h-[200px] gap-0.5 overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectFolder(null);
+                  onNavigate?.();
+                }}
+                className={`rounded-md px-2 py-1.5 text-left text-xs transition ${
+                  selectedFolderId === null
+                    ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
+                    : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
+                }`}
+              >
+                All Chats
+              </button>
+
+              {folders.map((folder) => (
+                <FolderTreeItem
+                  key={folder.id}
+                  folder={folder}
+                  chats={chats}
+                  isSelected={selectedFolderId === folder.id}
+                  currentChatId={currentChatId}
+                  onSelectFolder={onSelectFolder}
+                  onSelectChat={onSelectChat}
+                  onNavigate={onNavigate}
+                  onRenameFolder={onRenameFolder}
+                  onDeleteFolder={onDeleteFolder}
+                  onDeleteChat={onDeleteChat}
+                  onRenameChat={onRenameChat}
+                />
+              ))}
+
+              {!folders.length && (
+                <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
+                  No folders yet.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Chats */}
+        <div className="mb-1 mt-2 px-1">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">
+            Recent
+          </span>
+        </div>
+
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+          <div className="grid gap-0.5">
+            {chats.map((chat) => (
+              <RecentChatItem
+                key={chat.id}
+                chat={chat}
+                isActive={currentChatId === chat.id}
+                isSignedIn={isSignedIn}
+                onSelectChat={onSelectChat}
+                onNavigate={onNavigate}
+                onRenameChat={onRenameChat}
+                onDeleteChat={onDeleteChat}
+              />
+            ))}
+
+            {!chats.length && (
+              <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
+                {user ? "No saved chats yet." : "Sign in to store chats."}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Account section at bottom */}
+        <div className="mt-auto shrink-0 border-t border-[var(--border)] pt-3">
+          {loadingAuth ? (
+            <div className="flex items-center gap-2">
+              <div className="skeleton h-7 w-7 rounded-full" />
+              <div className="flex-1 space-y-1">
+                <div className="skeleton h-3 w-20" />
+                <div className="skeleton h-2 w-28" />
+              </div>
+            </div>
+          ) : user ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                style={{ background: BRAND_GRADIENT }}
+              >
+                {user.name?.charAt(0)?.toUpperCase() || "U"}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-[var(--text-primary)]">
+                  {user.name}
+                </p>
+                <p className="truncate text-[10px] text-[var(--text-soft)]">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenAuth}
+              className="brand-gradient flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-white transition"
+            >
+              <LogIn size={14} />
+              Sign In
+            </button>
+          )}
+        </div>
+      </aside>
+    );
+  }
+
+  /* ─── Mobile layout (with nav links + tabs) ─── */
   return (
     <aside className="flex h-full flex-col bg-[var(--surface)] p-3">
       {/* New Chat button */}
@@ -513,35 +680,107 @@ export function ChatSidebar({
         New Chat
       </button>
 
-      {showNavLinks && (
-        <div className="mb-3 border-b border-[var(--border)] pb-3 grid gap-0.5">
-          {[
-            { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-            { href: "/chat", label: "Chat", icon: MessageSquare },
-            { href: "/council", label: "AI Council", icon: Users },
-            { href: "/custom-swastik", label: "Custom Swastik", icon: Sparkles },
-            { href: "/task-mode", label: "Task Mode", icon: Layers },
-            ...(isSignedIn ? [{ href: "/settings", label: "Settings", icon: Settings }] : []),
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-alt)] hover:text-[var(--text-primary)] transition"
-                onClick={onNavigate}
-              >
-                <Icon size={15} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      {/* Nav links */}
+      <div className="mb-3 border-b border-[var(--border)] pb-3 grid gap-0.5">
+        {[
+          { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          { href: "/chat", label: "Chat", icon: MessageSquare },
+          { href: "/council", label: "AI Council", icon: Users },
+          { href: "/custom-swastik", label: "Custom Swastik", icon: Sparkles },
+          { href: "/task-mode", label: "Task Mode", icon: Layers },
+          ...(isSignedIn ? [{ href: "/settings", label: "Settings", icon: Settings }] : []),
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-alt)] hover:text-[var(--text-primary)] transition"
+              onClick={onNavigate}
+            >
+              <Icon size={15} />
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
 
-      {/* Folders — only show when signed in */}
-      {isSignedIn && (
-        <div className="mb-1">
+      {/* ─── Tab buttons / Tab content ─── */}
+      {mobileTab === null ? (
+        /* Show two tab buttons */
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setMobileTab("chats")}
+            className="flex items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-alt)] hover:border-[var(--brand)]"
+          >
+            <MessageSquare size={16} className="text-[var(--brand)]" />
+            All Chats
+          </button>
+          {isSignedIn && (
+            <button
+              type="button"
+              onClick={() => setMobileTab("folders")}
+              className="flex items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-alt)] hover:border-[var(--brand)]"
+            >
+              <FolderOpen size={16} className="text-[var(--brand)]" />
+              Folders
+            </button>
+          )}
+        </div>
+      ) : mobileTab === "chats" ? (
+        /* All Chats tab content */
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileTab(null)}
+            className="mb-2 flex items-center gap-1.5 rounded-md px-1 py-1 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
+          >
+            <ChevronLeft size={14} />
+            Back
+          </button>
+
+          <div className="mb-1 px-1">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">
+              All Chats
+            </span>
+          </div>
+
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+            <div className="grid gap-0.5">
+              {chats.map((chat) => (
+                <RecentChatItem
+                  key={chat.id}
+                  chat={chat}
+                  isActive={currentChatId === chat.id}
+                  isSignedIn={isSignedIn}
+                  onSelectChat={onSelectChat}
+                  onNavigate={onNavigate}
+                  onRenameChat={onRenameChat}
+                  onDeleteChat={onDeleteChat}
+                />
+              ))}
+
+              {!chats.length && (
+                <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
+                  {user ? "No saved chats yet." : "Sign in to store chats."}
+                </p>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Folders tab content */
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileTab(null)}
+            className="mb-2 flex items-center gap-1.5 rounded-md px-1 py-1 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
+          >
+            <ChevronLeft size={14} />
+            Back
+          </button>
+
           <div className="mb-1.5 flex items-center justify-between px-1">
             <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">
               Folders
@@ -570,77 +809,49 @@ export function ChatSidebar({
             </button>
           </div>
 
-          <div className="custom-scrollbar grid max-h-[200px] gap-0.5 overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => {
-                onSelectFolder(null);
-                onNavigate?.();
-              }}
-              className={`rounded-md px-2 py-1.5 text-left text-xs transition ${
-                selectedFolderId === null
-                  ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
-              }`}
-            >
-              All Chats
-            </button>
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+            <div className="grid gap-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectFolder(null);
+                  onNavigate?.();
+                }}
+                className={`rounded-md px-2 py-1.5 text-left text-xs transition ${
+                  selectedFolderId === null
+                    ? "bg-[var(--surface-alt)] font-medium text-[var(--text-primary)]"
+                    : "text-[var(--text-muted)] hover:bg-[var(--surface-alt)]"
+                }`}
+              >
+                All Chats
+              </button>
 
-            {folders.map((folder) => (
-              <FolderTreeItem
-                key={folder.id}
-                folder={folder}
-                chats={chats}
-                isSelected={selectedFolderId === folder.id}
-                currentChatId={currentChatId}
-                onSelectFolder={onSelectFolder}
-                onSelectChat={onSelectChat}
-                onNavigate={onNavigate}
-                onRenameFolder={onRenameFolder}
-                onDeleteFolder={onDeleteFolder}
-                onDeleteChat={onDeleteChat}
-                onRenameChat={onRenameChat}
-              />
-            ))}
+              {folders.map((folder) => (
+                <FolderTreeItem
+                  key={folder.id}
+                  folder={folder}
+                  chats={chats}
+                  isSelected={selectedFolderId === folder.id}
+                  currentChatId={currentChatId}
+                  onSelectFolder={onSelectFolder}
+                  onSelectChat={onSelectChat}
+                  onNavigate={onNavigate}
+                  onRenameFolder={onRenameFolder}
+                  onDeleteFolder={onDeleteFolder}
+                  onDeleteChat={onDeleteChat}
+                  onRenameChat={onRenameChat}
+                />
+              ))}
 
-            {!folders.length && (
-              <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
-                No folders yet.
-              </p>
-            )}
+              {!folders.length && (
+                <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
+                  No folders yet.
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
-
-      {/* Recent Chats */}
-      <div className="mb-1 mt-2 px-1">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-soft)]">
-          Recent
-        </span>
-      </div>
-
-      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
-        <div className="grid gap-0.5">
-          {chats.map((chat) => (
-            <RecentChatItem
-              key={chat.id}
-              chat={chat}
-              isActive={currentChatId === chat.id}
-              isSignedIn={isSignedIn}
-              onSelectChat={onSelectChat}
-              onNavigate={onNavigate}
-              onRenameChat={onRenameChat}
-              onDeleteChat={onDeleteChat}
-            />
-          ))}
-
-          {!chats.length && (
-            <p className="px-2 py-1 text-[11px] text-[var(--text-soft)]">
-              {user ? "No saved chats yet." : "Sign in to store chats."}
-            </p>
-          )}
-        </div>
-      </div>
 
       {/* Account section at bottom */}
       <div className="mt-auto shrink-0 border-t border-[var(--border)] pt-3">
