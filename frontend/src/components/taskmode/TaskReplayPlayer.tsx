@@ -6,8 +6,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
+import { TaskFollowUpChat } from "@/components/taskmode/TaskFollowUpChat";
 import { BRAND_GRADIENT } from "@/lib/brand";
-import type { AgentConversationMessage, TimelineStep } from "@/lib/types";
+import type { AgentConversationMessage, FollowUpMessage, TimelineStep } from "@/lib/types";
 
 /* ── Agent Colors ── */
 
@@ -272,6 +273,9 @@ interface TaskReplayPlayerProps {
   } | null;
   totalTime?: number;
   totalTokens?: number;
+  workflowId?: string | null;
+  taskType?: string;
+  followupMessages?: FollowUpMessage[];
 }
 
 export function TaskReplayPlayer({
@@ -280,6 +284,9 @@ export function TaskReplayPlayer({
   finalResult,
   totalTime,
   totalTokens,
+  workflowId,
+  taskType,
+  followupMessages,
 }: TaskReplayPlayerProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -447,6 +454,15 @@ export function TaskReplayPlayer({
                 </div>
               </div>
             )}
+
+          {/* Follow-up chat on last step */}
+          {currentStepIndex === totalSteps - 1 && workflowId && (
+            <TaskFollowUpChat
+              workflowId={workflowId}
+              taskType={taskType || "coding"}
+              initialMessages={followupMessages}
+            />
+          )}
         </div>
       </div>
 

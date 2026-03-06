@@ -239,6 +239,7 @@ export interface TaskWorkflowSummary {
   steps_count: number;
   status: "completed" | "failed";
   created_at: string;
+  has_followup?: boolean;
 }
 
 export interface TaskWorkflowFull extends TaskWorkflowSummary {
@@ -249,6 +250,23 @@ export interface TaskWorkflowFull extends TaskWorkflowSummary {
     agent: string;
     agent_name: string;
   } | null;
+  followup_chat?: FollowUpMessage[];
+}
+
+/* ─── Task Follow-Up Chat Types ─── */
+
+export interface FollowUpMessage {
+  role: "user" | "assistant";
+  content: string;
+  model_used?: string | null;
+  created_at?: string;
+}
+
+export interface TaskFollowUpResponse {
+  ok: boolean;
+  reply: string;
+  model_used: string;
+  response_time_seconds: number;
 }
 
 export interface ChatCompletionResponse {

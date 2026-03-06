@@ -6,8 +6,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
+import { TaskFollowUpChat } from "@/components/taskmode/TaskFollowUpChat";
 import { BRAND_GRADIENT } from "@/lib/brand";
-import type { AgentConversationMessage } from "@/lib/types";
+import type { AgentConversationMessage, FollowUpMessage } from "@/lib/types";
 
 const AGENT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   gpt: { bg: "rgba(16,163,127,0.10)", text: "#10a37f", border: "rgba(16,163,127,0.25)" },
@@ -246,6 +247,9 @@ interface AgentConversationPanelProps {
   totalTime?: number;
   totalTokens?: number;
   isComplete: boolean;
+  workflowId?: string | null;
+  taskType?: string;
+  followupMessages?: FollowUpMessage[];
 }
 
 export function AgentConversationPanel({
@@ -254,6 +258,9 @@ export function AgentConversationPanel({
   totalTime,
   totalTokens,
   isComplete,
+  workflowId,
+  taskType,
+  followupMessages,
 }: AgentConversationPanelProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const animatedIdsRef = useRef<Set<string>>(new Set());
@@ -309,6 +316,15 @@ export function AgentConversationPanel({
             Workflow Complete
           </span>
         </div>
+      )}
+
+      {/* Follow-Up Chat */}
+      {isComplete && workflowId && (
+        <TaskFollowUpChat
+          workflowId={workflowId}
+          taskType={taskType || "coding"}
+          initialMessages={followupMessages}
+        />
       )}
 
       <div ref={endRef} />

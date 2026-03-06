@@ -1298,6 +1298,51 @@ async def task_mode(
     return {"ok": True, **result, "chat_id": stored_chat_id}
 
 
+# ── Task Follow-Up Chat ──────────────────────────────────────────────
+
+
+class TaskFollowUpRequest(BaseModel):
+    task_id: str
+    message: str
+    forced_model: Optional[str] = None
+
+
+def _build_followup_context(workflow_doc: Dict[str, Any]) -> str:
+    """Build a system-level context string from workflow data for follow-up chat."""
+    task_prompt = workflow_doc.get("task_prompt", "")
+    task_type = workflow_doc.get("task_type", "")
+    task_label = workflow_doc.get("task_label", task_type)
+    final_result = workflow_doc.get("final_result", {})
+    events = workflow_doc.get("events", [])
+
+    # Extract step outputs from events
+    step_outputs = []
+    for event in events:
+        if event.get("type") == "step_complete" and event.get("content"):
+            step_outputs.append(
+                f"[{event.get('step_label', event.get('step', 'Step'))} "
+                f"by {event.get('agent_name', event.get('agent', 'Agent'))}]:\n"
+                f"{event['content'][:2000]}"
+            )
+
+    steps_text = "\n\n".join(step_outputs) if step_outputs else "(no step outputs available)"
+
+    final_text = final_result.get("content", "") if final_result else ""
+    final_agent = final_result.get("agent_name", "") if final_result else ""
+
+    context = (
+        f"You are a helpful AI assistant continuing a conversation about a completed "
+        f"{task_label} workflow.\n\n"
+        f"=== ORIGINAL TASK ===\n{task_prompt}\n\n"
+        f"=== WORKFLOW STEPS ===\n{steps_text}\n\n"
+        f"=== FINAL SYNTHESIZED RESULT (by {final_agent}) ===\n{final_text}\n\n"
+        f"The user may ask for clarifications, improvements, error fixes, additional features, "
+        f"or explanations about the above output. Respond helpfully with full context awareness. "
+        f"When providing code, always provide complete, production-ready implementations."
+    )
+    return context
+
+
 # ── Task Workflow — Iterative Streaming Engine ───────────────────────
 
 
@@ -1438,6 +1483,7 @@ def _serialize_workflow_summary(doc: Dict[str, Any]) -> Dict[str, Any]:
         "steps_count": doc.get("steps_count", 0),
         "status": doc.get("status", "completed"),
         "created_at": utc_iso(doc.get("created_at")),
+        "has_followup": bool(doc.get("followup_chat")),
     }
 
 
@@ -1447,6 +1493,7 @@ def _serialize_workflow_full(doc: Dict[str, Any]) -> Dict[str, Any]:
     summary["agents"] = doc.get("agents", {})
     summary["events"] = doc.get("events", [])
     summary["final_result"] = doc.get("final_result")
+    summary["followup_chat"] = doc.get("followup_chat", [])
     return summary
 
 
@@ -1504,6 +1551,97 @@ async def get_task_workflow(
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     return {"ok": True, "workflow": _serialize_workflow_full(doc)}
+
+
+@app.post("/api/task-followup")
+async def task_followup(
+    payload: TaskFollowUpRequest,
+    request: Request,
+    optional_auth=Depends(get_optional_auth),
+):
+    """Follow-up chat on a completed task workflow with full context awareness."""
+    message = (payload.message or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    db = getattr(request.app.state, "db", None)
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    if not optional_auth:
+        raise HTTPException(status_code=401, detail="Sign in required")
+
+    user_id = optional_auth["user"]["_id"]
+    oid = parse_object_id(payload.task_id, "task_id")
+
+    # Fetch the workflow document
+    workflow_doc = await db.task_workflows.find_one({"_id": oid, "user_id": user_id})
+    if not workflow_doc:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Build the full context prompt
+    context = _build_followup_context(workflow_doc)
+
+    # Retrieve existing follow-up messages for conversation continuity
+    existing_followups = workflow_doc.get("followup_chat", [])
+
+    # Build the full prompt with conversation history
+    conversation_parts = [context]
+    for msg in existing_followups:
+        role_label = "User" if msg["role"] == "user" else "Assistant"
+        conversation_parts.append(f"\n{role_label}: {msg['content']}")
+
+    conversation_parts.append(f"\nUser: {message}")
+    conversation_parts.append("\nAssistant:")
+
+    full_prompt = "\n".join(conversation_parts)
+
+    # Default to the agent that produced the final synthesis
+    default_model = None
+    final_result = workflow_doc.get("final_result")
+    if final_result and final_result.get("agent"):
+        default_model = final_result["agent"]
+
+    try:
+        result = await _generate_response(full_prompt, payload.forced_model or default_model)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Model generation failed: {exc}")
+
+    now = utc_now()
+
+    # Persist the exchange to the workflow document
+    await db.task_workflows.update_one(
+        {"_id": oid, "user_id": user_id},
+        {
+            "$push": {
+                "followup_chat": {
+                    "$each": [
+                        {
+                            "role": "user",
+                            "content": message,
+                            "model_used": None,
+                            "created_at": utc_iso(now),
+                        },
+                        {
+                            "role": "assistant",
+                            "content": result["response"],
+                            "model_used": result["model_selected"],
+                            "created_at": utc_iso(now),
+                        },
+                    ]
+                }
+            }
+        },
+    )
+
+    return {
+        "ok": True,
+        "reply": result["response"],
+        "model_used": result["model_selected"],
+        "response_time_seconds": result["response_time_seconds"],
+    }
 
 
 # ── Best Answer Mode — Multi-Agent Synthesis ─────────────────────────

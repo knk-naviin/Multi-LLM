@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Layers, Play, RotateCcw, Square, History, Film, X } from "lucide-react";
+import { Layers, Play, RotateCcw, Square, History, Film, X, ArrowLeft } from "lucide-react";
 
 import { TaskChipSelector } from "@/components/chat/TaskChipSelector";
 import { AgentRoleSelector } from "@/components/chat/AgentRoleSelector";
@@ -14,6 +14,7 @@ import { apiRequest } from "@/lib/api";
 import { BRAND_GRADIENT } from "@/lib/brand";
 import type {
   AgentConversationMessage,
+  FollowUpMessage,
   TaskTypeConfig,
   TaskWorkflowSummary,
   TaskWorkflowFull,
@@ -158,6 +159,9 @@ function TaskModeWorkspace() {
   const [totalTime, setTotalTime] = useState<number | undefined>();
   const [totalTokens, setTotalTokens] = useState<number | undefined>();
 
+  // ── Follow-Up Chat state ──
+  const [followupMessages, setFollowupMessages] = useState<FollowUpMessage[]>([]);
+
   // ── Replay & History state ──
   const [showReplay, setShowReplay] = useState(false);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
@@ -294,6 +298,7 @@ function TaskModeWorkspace() {
         setIsComplete(true);
         setIsRunning(false);
         setWorkflowId(wf.id);
+        setFollowupMessages(wf.followup_chat || []);
         setHistoryOpen(false);
         setShowReplay(true);
       } catch {
@@ -660,6 +665,17 @@ function TaskModeWorkspace() {
               New Task
             </button>
           )}
+          {/* Cancelled state: workflow stopped but not complete */}
+          {!isRunning && !isComplete && hasExecution && (
+            <button
+              type="button"
+              onClick={resetWorkflow}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500 transition hover:bg-amber-500/20"
+            >
+              <ArrowLeft size={10} />
+              Back to Setup
+            </button>
+          )}
         </div>
       </div>
 
@@ -839,6 +855,9 @@ function TaskModeWorkspace() {
           finalResult={finalResult}
           totalTime={totalTime}
           totalTokens={totalTokens}
+          workflowId={workflowId}
+          taskType={selectedType || undefined}
+          followupMessages={followupMessages}
         />
       ) : (
         /* ── Execution View (Two-panel layout) ── */
@@ -855,12 +874,34 @@ function TaskModeWorkspace() {
               <TaskExecutionTimeline steps={timelineSteps} isRunning={isRunning} />
             </div>
 
+            {/* Cancelled banner */}
+            {!isRunning && !isComplete && hasExecution && (
+              <div className="mx-4 mt-4 flex items-center justify-between rounded-lg border border-amber-500/25 bg-amber-500/5 px-4 py-3 sm:mx-6">
+                <div className="flex items-center gap-2">
+                  <Square size={12} className="text-amber-500" />
+                  <span className="text-sm font-medium text-amber-500">Workflow Stopped</span>
+                  <span className="text-[11px] text-[var(--text-soft)]">— You can review the partial output or start a new task.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetWorkflow}
+                  className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-500 transition hover:bg-amber-500/20"
+                >
+                  <ArrowLeft size={10} />
+                  Back to Setup
+                </button>
+              </div>
+            )}
+
             <AgentConversationPanel
               messages={agentMessages}
               finalResult={finalResult}
               totalTime={totalTime}
               totalTokens={totalTokens}
               isComplete={isComplete}
+              workflowId={workflowId}
+              taskType={selectedType || undefined}
+              followupMessages={followupMessages}
             />
           </div>
         </div>
