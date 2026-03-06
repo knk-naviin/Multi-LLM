@@ -1717,6 +1717,34 @@ async def ai_council(payload: AICouncilRequest):
     )
 
 
+# ── AI Council — Sequential Debate Mode ─────────────────────────────
+
+
+class AICouncilDebateRequest(BaseModel):
+    prompt: str
+    enabled_agents: Optional[list[str]] = None
+
+
+@app.post("/api/ai-council-debate")
+async def ai_council_debate(payload: AICouncilDebateRequest):
+    prompt = (payload.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required")
+
+    config = CouncilConfig(enabled_agents=payload.enabled_agents)
+    orchestrator = ConversationOrchestrator(config)
+
+    return StreamingResponse(
+        orchestrator.run_sequential_debate(prompt),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.get("/health")
 async def health(request: Request):
     db = getattr(request.app.state, "db", None)

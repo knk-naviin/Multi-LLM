@@ -190,6 +190,30 @@ export interface CouncilAgentMetric {
   votes_received: number;
 }
 
+/* ─── Sequential Debate Types ─── */
+
+export type DebateStance = "initiate" | "agree" | "oppose" | "partial_agree" | "review";
+
+export interface DebateMessage {
+  id: string;
+  type: "user" | "debate_response" | "synthesis" | "typing" | "done";
+  agent?: CouncilAgent;
+  agentName?: string;
+  agentRole?: string;
+  content: string;
+  stance?: DebateStance;
+  references?: string[];
+  sequence?: number;
+  totalAgents?: number;
+  responseTime?: number;
+  tokens?: number;
+  timestamp: number;
+  error?: string;
+  metrics?: CouncilAgentMetric[];
+  totalTime?: number;
+  totalTokens?: number;
+}
+
 /* ─── Task Workflow (Iterative Streaming) Types ─── */
 
 export interface TimelineStep {

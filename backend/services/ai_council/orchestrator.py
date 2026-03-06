@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from typing import AsyncGenerator, Optional
 
-from .agents import AgentManager, AgentResponse, get_available_agents
+from .agents import AgentManager, AgentResponse, AGENT_DEFINITIONS, get_available_agents
 from .debate import DebateEngine
 from .synthesizer import FinalSynthesizer, parse_votes
 
@@ -174,6 +174,135 @@ class ConversationOrchestrator:
 
         # ──────────────────────────── Done ───────────────────────────────
         yield self._done_event(t0, total_tokens, metrics, tally)
+
+    # ─── Sequential Debate Mode ──────────────────────────────────────
+
+    async def run_sequential_debate(self, prompt: str) -> AsyncGenerator[str, None]:
+        """Run a sequential debate where agents respond one at a time,
+        each building on and reacting to all previous responses."""
+        t0 = time.time()
+        total_tokens = 0
+        all_responses: list[AgentResponse] = []
+        metrics: dict[str, dict] = {
+            k: {"times": [], "tokens": 0, "errors": 0}
+            for k in self.manager.keys()
+        }
+
+        agent_keys = self.manager.keys()
+        total_agents = len(agent_keys)
+
+        # Emit debate start
+        yield _sse({
+            "type": "council_start",
+            "mode": "sequential_debate",
+            "agents": [
+                {"key": k, "name": c.name, "role": c.role, "color": c.color}
+                for k, c in self.manager.agents.items()
+            ],
+        })
+
+        # ── Sequential agent responses ──
+        for idx, agent_key in enumerate(agent_keys):
+            cfg = self.manager.get_config(agent_key)
+            if not cfg:
+                continue
+
+            # Typing indicator
+            yield _sse({
+                "type": "agent_typing",
+                "agent": agent_key,
+                "name": cfg.name,
+                "role": cfg.role,
+                "sequence": idx + 1,
+                "total": total_agents,
+            })
+
+            # Build prompt
+            if idx == 0:
+                agent_prompt = self.debate._sequential_initial_prompt(agent_key, prompt)
+            else:
+                agent_prompt = self.debate._sequential_followup_prompt(
+                    agent_key, prompt, all_responses,
+                )
+
+            # Call agent (one at a time — sequential)
+            response = await self.manager.call_agent(agent_key, agent_prompt)
+            response.round_num = 1
+            response.response_type = "debate"
+
+            # Detect stance
+            stance = "initiate" if idx == 0 else self.debate._detect_stance(response.content)
+
+            # Track metrics
+            total_tokens += response.token_estimate
+            if agent_key in metrics:
+                metrics[agent_key]["times"].append(response.response_time)
+                metrics[agent_key]["tokens"] += response.token_estimate
+                if response.error:
+                    metrics[agent_key]["errors"] += 1
+
+            all_responses.append(response)
+
+            # Build references list
+            references = [
+                AGENT_DEFINITIONS[r.agent].name
+                for r in all_responses[:-1]
+                if not r.error and r.agent in AGENT_DEFINITIONS
+            ] if idx > 0 else []
+
+            # Emit debate response
+            yield _sse({
+                "type": "debate_response",
+                "agent": agent_key,
+                "name": cfg.name,
+                "role": cfg.role,
+                "content": response.content,
+                "stance": stance,
+                "references": references,
+                "sequence": idx + 1,
+                "total": total_agents,
+                "response_time": response.response_time,
+                "tokens": response.token_estimate,
+                "error": response.error,
+            })
+
+        # ── Synthesis phase ──
+        valid_responses = [r for r in all_responses if not r.error]
+        if not valid_responses:
+            yield self._done_event(t0, total_tokens, metrics, {})
+            return
+
+        synth_agent = agent_keys[0]
+        yield _sse({
+            "type": "agent_typing",
+            "agent": synth_agent,
+            "name": "Synthesizer",
+            "role": "Final Synthesis",
+            "sequence": total_agents + 1,
+            "total": total_agents + 1,
+        })
+
+        synth_prompt = self.debate._sequential_synthesis_prompt(prompt, all_responses)
+        synthesis = await self.manager.call_agent(synth_agent, synth_prompt)
+        synthesis.round_num = 2
+        synthesis.response_type = "synthesis"
+        total_tokens += synthesis.token_estimate
+
+        if synth_agent in metrics:
+            metrics[synth_agent]["times"].append(synthesis.response_time)
+            metrics[synth_agent]["tokens"] += synthesis.token_estimate
+
+        yield _sse({
+            "type": "synthesis",
+            "agent": synthesis.agent,
+            "content": synthesis.content,
+            "response_time": synthesis.response_time,
+            "tokens": synthesis.token_estimate,
+            "error": synthesis.error,
+        })
+
+        # ── Done ──
+        yield self._done_event(t0, total_tokens, metrics, {})
 
     def _done_event(
         self,

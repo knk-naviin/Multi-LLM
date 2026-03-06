@@ -249,6 +249,50 @@ body {
   animation: slideIn 0.25s ease-out forwards;
 }
 
+/* ─── Debate slide-in animations ─── */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slideInLeft 0.35s ease-out forwards;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slideInRight 0.35s ease-out forwards;
+}
+
+/* ─── React Flow theme overrides ─── */
+.react-flow__node {
+  cursor: pointer;
+}
+.react-flow__controls {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.react-flow__controls-button {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  fill: var(--text-muted) !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--surface-alt) !important;
+}
+.react-flow__minimap {
+  background: var(--surface) !important;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.react-flow__background pattern line {
+  stroke: var(--border) !important;
+}
+
 /* Full-screen loading overlay */
 @keyframes spinSmooth {
   to { transform: rotate(360deg); }

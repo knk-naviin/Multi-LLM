@@ -1,16 +1,124 @@
 """
 AI Council — Debate Engine
-Manages critique and refinement rounds.
+Manages critique, refinement rounds, and sequential debate mode.
 """
 
 from .agents import AgentManager, AgentResponse, AGENT_DEFINITIONS
+
+
+# ── Stance detection keywords ──────────────────────────────────────
+
+STANCE_KEYWORDS: dict[str, list[str]] = {
+    "oppose": [
+        "i oppose", "i disagree", "i strongly disagree",
+        "i must disagree", "i cannot agree", "i don't agree",
+    ],
+    "partial_agree": [
+        "i partially agree", "while i agree", "i agree in part",
+        "partially correct", "i agree with some", "i partly agree",
+    ],
+    "agree": [
+        "i agree", "i concur", "i support", "i fully agree",
+        "i second", "i strongly agree",
+    ],
+}
 
 
 class DebateEngine:
     def __init__(self, manager: AgentManager):
         self.manager = manager
 
-    # ── Prompt builders ──────────────────────────────────────────────
+    # ── Stance detection ───────────────────────────────────────────
+
+    def _detect_stance(self, content: str) -> str:
+        """Parse the first 200 chars for stance keywords.
+
+        Returns one of: 'oppose', 'partial_agree', 'agree', or 'review'.
+        Checks oppose first to avoid 'i agree' matching inside 'i don't agree'.
+        """
+        snippet = content[:200].lower()
+        for stance, keywords in STANCE_KEYWORDS.items():
+            for keyword in keywords:
+                if keyword in snippet:
+                    return stance
+        return "review"
+
+    # ── Sequential debate prompt builders ──────────────────────────
+
+    def _sequential_initial_prompt(self, agent_key: str, user_prompt: str) -> str:
+        """Prompt for the first agent in sequential debate (no prior context)."""
+        cfg = self.manager.get_config(agent_key)
+        return (
+            f"You are {cfg.name}, an AI agent with the role: {cfg.role}.\n"
+            f"Your focus area: {cfg.focus}.\n\n"
+            f"You are the first speaker in a structured AI debate. "
+            f"Provide a thorough initial analysis of the following question:\n\n"
+            f"{user_prompt}\n\n"
+            f"Give a clear, well-structured response that presents your perspective. "
+            f"Other AI agents will respond to your points next."
+        )
+
+    def _sequential_followup_prompt(
+        self,
+        agent_key: str,
+        user_prompt: str,
+        prior_responses: list[AgentResponse],
+    ) -> str:
+        """Prompt for subsequent agents who must reference all prior responses."""
+        cfg = self.manager.get_config(agent_key)
+        prior_text = "\n\n".join(
+            f"--- {AGENT_DEFINITIONS[r.agent].name} ({AGENT_DEFINITIONS[r.agent].role}) ---\n"
+            f"{r.content}"
+            for r in prior_responses
+            if not r.error
+        )
+        prior_names = ", ".join(
+            AGENT_DEFINITIONS[r.agent].name
+            for r in prior_responses
+            if not r.error
+        )
+        return (
+            f"You are {cfg.name}, an AI agent with the role: {cfg.role}.\n"
+            f"Your focus area: {cfg.focus}.\n\n"
+            f"A structured AI debate is in progress about this question:\n"
+            f"\"{user_prompt}\"\n\n"
+            f"The following agents have already responded: {prior_names}\n\n"
+            f"Their responses:\n\n{prior_text}\n\n"
+            f"IMPORTANT — You MUST begin your response with ONE of these phrases:\n"
+            f"- \"I agree with [agent name]...\" if you support their position\n"
+            f"- \"I disagree with [agent name]...\" if you oppose their position\n"
+            f"- \"I partially agree with [agent name]...\" for a nuanced stance\n\n"
+            f"Then provide your own analysis. Reference specific points from "
+            f"previous responses and be direct about where you agree or disagree. "
+            f"This is a debate — take a clear position."
+        )
+
+    def _sequential_synthesis_prompt(
+        self,
+        user_prompt: str,
+        all_responses: list[AgentResponse],
+    ) -> str:
+        """Prompt for generating the final synthesis after sequential debate."""
+        responses_text = "\n\n".join(
+            f"--- {AGENT_DEFINITIONS[r.agent].name} ({AGENT_DEFINITIONS[r.agent].role}) ---\n"
+            f"{r.content}"
+            for r in all_responses
+            if not r.error
+        )
+        return (
+            f"You are the Final Synthesizer for an AI debate.\n\n"
+            f"Original question: {user_prompt}\n\n"
+            f"The following agents debated this topic sequentially, each building "
+            f"on and responding to previous arguments:\n\n{responses_text}\n\n"
+            f"Create a comprehensive final answer that:\n"
+            f"1. Identifies the key points of agreement across agents\n"
+            f"2. Addresses the points of disagreement and resolves them\n"
+            f"3. Combines the strongest insights from all perspectives\n"
+            f"4. Is well-structured and actionable\n\n"
+            f"Provide the definitive synthesized answer:"
+        )
+
+    # ── Parallel round prompt builders (existing) ──────────────────
 
     def _initial_prompt(self, agent_key: str, user_prompt: str) -> str:
         cfg = self.manager.get_config(agent_key)

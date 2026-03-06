@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^2.0.4",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@xyflow/react": "^12.10.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.576.0",
     "next": "16.1.6",
@@ -20,6 +22,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.54",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
