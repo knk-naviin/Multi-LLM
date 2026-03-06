@@ -108,7 +108,7 @@ function FaqItem({ faq }: { faq: { q: string; a: string } }) {
 
 export default function AboutPage() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
+    <div className="h-full overflow-y-auto custom-scrollbar mx-auto max-w-4xl px-4 py-8 sm:py-12">
       {/* Hero */}
       <section className="mb-12">
         <div className="mb-2 flex items-center gap-2">

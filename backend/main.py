@@ -47,6 +47,7 @@ from models.gpt import call_gpt
 from router import rank_models
 from services.ai_council import ConversationOrchestrator, CouncilConfig
 from services.best_answer import BestAnswerEngine
+from services.task_mode import TASK_TYPES, TaskWorkflowEngine, IterativeWorkflowEngine
 
 app = FastAPI(title="Swastik Ai API", version="2.0.0")
 
@@ -543,6 +544,7 @@ async def on_startup():
         await db.folders.create_index([("user_id", ASCENDING), ("updated_at", DESCENDING)])
         await db.projects.create_index([("user_id", ASCENDING), ("updated_at", DESCENDING)])
         await db.chats.create_index([("user_id", ASCENDING), ("updated_at", DESCENDING)])
+        await db.task_workflows.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
         app.state.db = db
         logger.info("MongoDB connected")
     except Exception as exc:  # noqa: BLE001
@@ -1211,6 +1213,297 @@ async def benchmark_model_status():
 @app.post("/benchmark-model/reload")
 async def benchmark_model_reload():
     return benchmark_model.reload()
+
+
+# ── Task Mode — AI Team Workflow ──────────────────────────────────────
+
+
+class TaskModeRequest(BaseModel):
+    task_prompt: str
+    task_type: str
+    agents: dict[str, str]  # role_key -> agent_key
+    store: bool = False
+    chat_id: Optional[str] = None
+    folder_id: Optional[str] = None
+    project_id: Optional[str] = None
+
+
+@app.get("/api/task-types")
+async def get_task_types():
+    """Return available task types and their role definitions."""
+    types = []
+    for key, cfg in TASK_TYPES.items():
+        types.append({
+            "key": cfg.key,
+            "label": cfg.label,
+            "icon": cfg.icon,
+            "roles": [
+                {
+                    "key": r.key,
+                    "label": r.label,
+                    "description": r.description,
+                }
+                for r in cfg.roles
+            ],
+        })
+    return {"ok": True, "task_types": types}
+
+
+@app.post("/api/task-mode")
+async def task_mode(
+    payload: TaskModeRequest,
+    request: Request,
+    optional_auth=Depends(get_optional_auth),
+):
+    prompt = payload.task_prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Task prompt is required")
+
+    if payload.task_type not in TASK_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown task type: {payload.task_type}",
+        )
+
+    engine = TaskWorkflowEngine(
+        task_type=payload.task_type,
+        agents=payload.agents,
+    )
+    result = await engine.run(prompt)
+
+    stored_chat_id = None
+    if payload.store:
+        db = getattr(request.app.state, "db", None)
+        if db is None:
+            raise HTTPException(
+                status_code=503,
+                detail="MongoDB unavailable. Disable Auto Store and retry.",
+            )
+        if not optional_auth:
+            raise HTTPException(
+                status_code=401,
+                detail="Sign in required to store chats",
+            )
+        stored_chat_id = await _persist_chat_turn(
+            db=db,
+            user_id=optional_auth["user"]["_id"],
+            prompt=prompt,
+            assistant_response=result["final_answer"],
+            model_selected=f"task-{payload.task_type}",
+            chat_id=payload.chat_id,
+            folder_id=payload.folder_id,
+            project_id=payload.project_id,
+        )
+
+    return {"ok": True, **result, "chat_id": stored_chat_id}
+
+
+# ── Task Workflow — Iterative Streaming Engine ───────────────────────
+
+
+class TaskWorkflowRequest(BaseModel):
+    task_prompt: str
+    task_type: str
+    agents: dict[str, str]  # role_key -> agent_key
+    max_review_iterations: int = 3
+    max_qc_iterations: int = 3
+    store: bool = True
+
+
+async def _workflow_with_persistence(
+    engine: IterativeWorkflowEngine,
+    prompt: str,
+    payload: TaskWorkflowRequest,
+    db,
+    user_id,
+):
+    """Wrapper generator that yields SSE events and persists the workflow to MongoDB on completion."""
+    import json as _json
+    import time as _time
+
+    collected_events: list[dict] = []
+    final_result_data: dict | None = None
+    done_data: dict | None = None
+
+    async for chunk in engine.run_workflow(prompt):
+        yield chunk
+
+        # Parse the event for collection
+        if chunk.startswith("data: "):
+            try:
+                event = _json.loads(chunk[6:].strip())
+                event["_ts"] = _time.time()
+                collected_events.append(event)
+
+                if event.get("type") == "final_result":
+                    final_result_data = {
+                        "content": event.get("content", ""),
+                        "agent": event.get("agent", ""),
+                        "agent_name": event.get("agent_name", ""),
+                    }
+                elif event.get("type") == "done":
+                    done_data = event
+            except Exception:
+                pass
+
+    # Persist to MongoDB after stream is done
+    if db is not None and user_id is not None and done_data is not None:
+        try:
+            task_config = TASK_TYPES.get(payload.task_type)
+            task_label = task_config.label if task_config else payload.task_type
+
+            doc = {
+                "user_id": user_id,
+                "task_prompt": prompt,
+                "task_type": payload.task_type,
+                "task_label": task_label,
+                "agents": payload.agents,
+                "events": collected_events,
+                "final_result": final_result_data,
+                "total_time": done_data.get("total_time", 0),
+                "total_tokens": done_data.get("total_tokens", 0),
+                "steps_count": done_data.get("steps_count", 0),
+                "status": "completed" if final_result_data else "failed",
+                "created_at": utc_now(),
+            }
+            inserted = await db.task_workflows.insert_one(doc)
+            workflow_id = str(inserted.inserted_id)
+
+            # Yield a final persistence event so the frontend knows the workflow_id
+            yield f"data: {_json.dumps({'type': 'workflow_saved', 'workflow_id': workflow_id})}\n\n"
+        except Exception as exc:
+            logger.warning("Failed to persist task workflow: %s", exc)
+
+
+@app.post("/api/task-workflow")
+async def task_workflow(
+    payload: TaskWorkflowRequest,
+    request: Request,
+    optional_auth=Depends(get_optional_auth),
+):
+    """
+    Streaming task workflow with iterative review loops.
+    Returns SSE events as the workflow progresses in real time.
+    Optionally persists the completed workflow to MongoDB.
+    """
+    prompt = (payload.task_prompt or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Task prompt is required")
+
+    if payload.task_type not in TASK_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown task type: {payload.task_type}",
+        )
+
+    engine = IterativeWorkflowEngine(
+        task_type=payload.task_type,
+        agents=payload.agents,
+        max_review_iterations=max(1, min(payload.max_review_iterations, 5)),
+        max_qc_iterations=max(1, min(payload.max_qc_iterations, 5)),
+    )
+
+    db = getattr(request.app.state, "db", None) if payload.store else None
+    user_id = optional_auth["user"]["_id"] if optional_auth else None
+
+    should_persist = payload.store and db is not None and user_id is not None
+    generator = (
+        _workflow_with_persistence(engine, prompt, payload, db, user_id)
+        if should_persist
+        else engine.run_workflow(prompt)
+    )
+
+    return StreamingResponse(
+        generator,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── Task Workflow History ─────────────────────────────────────────────
+
+
+def _serialize_workflow_summary(doc: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": str(doc["_id"]),
+        "task_prompt": (doc.get("task_prompt") or "")[:180],
+        "task_type": doc.get("task_type", ""),
+        "task_label": doc.get("task_label", ""),
+        "total_time": doc.get("total_time", 0),
+        "total_tokens": doc.get("total_tokens", 0),
+        "steps_count": doc.get("steps_count", 0),
+        "status": doc.get("status", "completed"),
+        "created_at": utc_iso(doc.get("created_at")),
+    }
+
+
+def _serialize_workflow_full(doc: Dict[str, Any]) -> Dict[str, Any]:
+    summary = _serialize_workflow_summary(doc)
+    summary["task_prompt"] = doc.get("task_prompt", "")  # full prompt
+    summary["agents"] = doc.get("agents", {})
+    summary["events"] = doc.get("events", [])
+    summary["final_result"] = doc.get("final_result")
+    return summary
+
+
+@app.get("/api/task-workflows")
+async def list_task_workflows(
+    request: Request,
+    optional_auth=Depends(get_optional_auth),
+    limit: int = Query(default=20, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
+):
+    """List the authenticated user's past task workflows."""
+    if not optional_auth:
+        raise HTTPException(status_code=401, detail="Sign in required")
+
+    db = getattr(request.app.state, "db", None)
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    user_id = optional_auth["user"]["_id"]
+    cursor = (
+        db.task_workflows.find({"user_id": user_id})
+        .sort("created_at", DESCENDING)
+        .skip(skip)
+        .limit(limit)
+    )
+
+    workflows = []
+    async for doc in cursor:
+        workflows.append(_serialize_workflow_summary(doc))
+
+    total = await db.task_workflows.count_documents({"user_id": user_id})
+
+    return {"ok": True, "workflows": workflows, "total": total}
+
+
+@app.get("/api/task-workflows/{workflow_id}")
+async def get_task_workflow(
+    workflow_id: str,
+    request: Request,
+    optional_auth=Depends(get_optional_auth),
+):
+    """Get full task workflow with all events for replay."""
+    if not optional_auth:
+        raise HTTPException(status_code=401, detail="Sign in required")
+
+    db = getattr(request.app.state, "db", None)
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    oid = parse_object_id(workflow_id, "workflow_id")
+    user_id = optional_auth["user"]["_id"]
+
+    doc = await db.task_workflows.find_one({"_id": oid, "user_id": user_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    return {"ok": True, "workflow": _serialize_workflow_full(doc)}
 
 
 # ── Best Answer Mode — Multi-Agent Synthesis ─────────────────────────

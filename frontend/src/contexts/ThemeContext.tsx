@@ -23,9 +23,9 @@ function resolveInitialTheme(): Theme {
   }
 
   if (typeof window === "undefined") {
-    return "dark";
+    return "light";
   }
-  return window.localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+  return window.localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
 }
 
 function applyTheme(theme: Theme): void {

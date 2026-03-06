@@ -8,7 +8,8 @@ import remarkGfm from "remark-gfm";
 
 import { BRAND_GRADIENT } from "@/lib/brand";
 import { AgentChatDropdown } from "@/components/chat/AgentChatDropdown";
-import type { AgentChatMessage } from "@/lib/types";
+import { TaskWorkflowDropdown } from "@/components/chat/TaskWorkflowDropdown";
+import type { AgentChatMessage, WorkflowStepMessage } from "@/lib/types";
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -24,6 +25,9 @@ interface MessageBubbleProps {
   agentChat?: AgentChatMessage[];
   synthesizedBy?: string;
   responseTimeSeconds?: number;
+  isTaskMode?: boolean;
+  taskType?: string;
+  workflowChat?: WorkflowStepMessage[];
 }
 
 function CodeRenderer({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -195,6 +199,9 @@ export function MessageBubble({
   agentChat,
   synthesizedBy,
   responseTimeSeconds,
+  isTaskMode,
+  taskType,
+  workflowChat,
 }: MessageBubbleProps) {
   const isAssistant = role === "assistant";
 
@@ -263,9 +270,21 @@ export function MessageBubble({
               <span className="text-amber-500 font-medium">Best Answer</span>
             </>
           )}
+          {isTaskMode && (
+            <>
+              {showModelInfo && modelUsed && <span>&middot;</span>}
+              <span className="text-indigo-500 font-medium">Task Mode</span>
+              {taskType && (
+                <>
+                  <span>&middot;</span>
+                  <span className="capitalize">{taskType.replace("_", " ")}</span>
+                </>
+              )}
+            </>
+          )}
           {timestamp && (
             <>
-              {(showModelInfo && modelUsed) || isBestAnswer ? <span>&middot;</span> : null}
+              {(showModelInfo && modelUsed) || isBestAnswer || isTaskMode ? <span>&middot;</span> : null}
               <span>{formatTimestamp(timestamp)}</span>
             </>
           )}
@@ -277,6 +296,15 @@ export function MessageBubble({
         <AgentChatDropdown
           agentChat={agentChat}
           synthesizedBy={synthesizedBy}
+          responseTime={responseTimeSeconds}
+        />
+      )}
+
+      {/* Task Workflow Dropdown — only for task mode responses */}
+      {!loading && isTaskMode && workflowChat && workflowChat.length > 0 && (
+        <TaskWorkflowDropdown
+          workflowChat={workflowChat}
+          taskType={taskType}
           responseTime={responseTimeSeconds}
         />
       )}

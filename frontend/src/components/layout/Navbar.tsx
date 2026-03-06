@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Moon, Settings, Sun, LogOut, Info, MessageSquare, User, Users, X } from "lucide-react";
+import { Menu, Moon, Settings, Sun, LogOut, Info, MessageSquare, User, Users, Layers, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -15,6 +15,7 @@ import Image from "next/image";
 
 const publicNavItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/task-mode", label: "Task Mode", icon: Layers },
   { href: "/council", label: "Council", icon: Users },
   { href: "/about", label: "About", icon: Info },
 ];

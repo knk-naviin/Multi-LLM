@@ -14,8 +14,8 @@ export const BRAND_LOGO_SIZE = 60; // px — used in Navbar
 export const BRAND_FAVICON = "/logo.svg"; // browser tab icon
 
 /* ─── Gradient ─── */
-export const BRAND_GRADIENT = "linear-gradient(180deg, #878274, #24221a)";
-export const BRAND_GRADIENT_HOVER = "linear-gradient(180deg, #9a9588, #2f2d22)";
+export const BRAND_GRADIENT = "linear-gradient(135deg, #6366f1, #8b5cf6)";
+export const BRAND_GRADIENT_HOVER = "linear-gradient(135deg, #4f46e5, #7c3aed)";
 
 /* ─── Theme Colors ─── */
 // Light theme

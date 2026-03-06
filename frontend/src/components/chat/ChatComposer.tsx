@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Layers } from "lucide-react";
 
 import { APP_NAME } from "@/lib/constants";
 import { BRAND_GRADIENT } from "@/lib/brand";
@@ -11,7 +11,9 @@ interface ChatComposerProps {
   value: string;
   disabled?: boolean;
   bestAnswerMode?: boolean;
+  taskModeOpen?: boolean;
   onToggleBestAnswer?: (enabled: boolean) => void;
+  onToggleTaskMode?: () => void;
   onChange: (value: string) => void;
   onSend: () => void;
 }
@@ -20,7 +22,9 @@ export function ChatComposer({
   value,
   disabled,
   bestAnswerMode = false,
+  taskModeOpen = false,
   onToggleBestAnswer,
+  onToggleTaskMode,
   onChange,
   onSend,
 }: ChatComposerProps) {
@@ -44,9 +48,13 @@ export function ChatComposer({
             <textarea
               ref={textareaRef}
               rows={1}
-              disabled={disabled}
+              disabled={disabled || taskModeOpen}
               value={value}
-              placeholder={`Message ${APP_NAME}...`}
+              placeholder={
+                taskModeOpen
+                  ? "Use the Task Mode panel above..."
+                  : `Message ${APP_NAME}...`
+              }
               className="max-h-[150px] min-h-[20px] w-full resize-none bg-transparent text-sm leading-5 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-soft)]"
               onChange={(event) => onChange(event.target.value)}
               onKeyDown={(event) => {
@@ -70,18 +78,35 @@ export function ChatComposer({
           </button>
         </div>
 
-        {/* Best Answer toggle + disclaimer */}
-        <div className="mt-1.5 flex items-center justify-between">
-          {onToggleBestAnswer ? (
-            <BestAnswerToggle
-              enabled={bestAnswerMode}
-              onToggle={onToggleBestAnswer}
-              disabled={disabled}
-            />
-          ) : (
-            <div />
-          )}
-          <p className="text-[10px] text-[var(--text-soft)]">
+        {/* Mode toggles + disclaimer */}
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            {onToggleBestAnswer && (
+              <BestAnswerToggle
+                enabled={bestAnswerMode}
+                onToggle={(v) => {
+                  onToggleBestAnswer(v);
+                }}
+                disabled={disabled || taskModeOpen}
+              />
+            )}
+            {onToggleTaskMode && (
+              <button
+                type="button"
+                onClick={onToggleTaskMode}
+                disabled={disabled}
+                className={`group flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all select-none ${
+                  taskModeOpen
+                    ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/30"
+                    : "bg-[var(--surface-alt)] text-[var(--text-soft)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"
+                } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+              >
+                <Layers size={12} />
+                <span>Task Mode</span>
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-[var(--text-soft)] shrink-0">
             AI responses may be inaccurate. Verify important outputs.
           </p>
         </div>

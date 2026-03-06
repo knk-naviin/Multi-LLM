@@ -629,7 +629,7 @@ function CouncilWorkspace() {
   const canSend = !debating && prompt.trim().length > 0;
 
   return (
-    <div className="flex h-[calc(100dvh-49px)] w-full flex-col overflow-hidden">
+    <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Header */}
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--border)] px-4">
         <div className="flex items-center gap-2">

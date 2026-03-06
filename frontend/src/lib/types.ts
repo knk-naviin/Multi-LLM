@@ -66,6 +66,9 @@ export interface UiMessage {
   agentChat?: AgentChatMessage[];
   synthesizedBy?: string;
   responseTimeSeconds?: number;
+  isTaskMode?: boolean;
+  taskType?: string;
+  workflowChat?: WorkflowStepMessage[];
 }
 
 export interface Project {
@@ -100,6 +103,32 @@ export interface ChatMessage {
   content: string;
   model_used?: string | null;
   created_at?: string;
+}
+
+/* ─── Task Mode Types ─── */
+
+export interface TaskRole {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface TaskTypeConfig {
+  key: string;
+  label: string;
+  icon: string;
+  roles: TaskRole[];
+}
+
+export interface WorkflowStepMessage {
+  role_key: string;
+  role_label: string;
+  agent: string;
+  agent_name: string;
+  message: string;
+  response_time: number;
+  tokens: number;
+  error?: string | null;
 }
 
 export interface ChatThread {
@@ -159,6 +188,67 @@ export interface CouncilAgentMetric {
   total_tokens: number;
   errors: number;
   votes_received: number;
+}
+
+/* ─── Task Workflow (Iterative Streaming) Types ─── */
+
+export interface TimelineStep {
+  id: string;
+  step: string;
+  stepLabel: string;
+  agent: string;
+  agentName?: string;
+  iteration: number;
+  status: "pending" | "in_progress" | "completed" | "failed" | "revision";
+  content?: string;
+  responseTime?: number;
+  tokens?: number;
+  error?: string;
+  feedbackMessage?: string;
+}
+
+export interface AgentConversationMessage {
+  id: string;
+  step: string;
+  stepLabel: string;
+  agent: string;
+  agentName: string;
+  content: string;
+  responseTime: number;
+  tokens: number;
+  error?: string;
+  iteration: number;
+}
+
+export interface TaskWorkflowRole {
+  key: string;
+  label: string;
+  description: string;
+  agent: string;
+}
+
+/* ─── Task Workflow History / Replay Types ─── */
+
+export interface TaskWorkflowSummary {
+  id: string;
+  task_prompt: string;
+  task_type: string;
+  task_label: string;
+  total_time: number;
+  total_tokens: number;
+  steps_count: number;
+  status: "completed" | "failed";
+  created_at: string;
+}
+
+export interface TaskWorkflowFull extends TaskWorkflowSummary {
+  agents: Record<string, string>;
+  events: Array<Record<string, unknown>>;
+  final_result: {
+    content: string;
+    agent: string;
+    agent_name: string;
+  } | null;
 }
 
 export interface ChatCompletionResponse {

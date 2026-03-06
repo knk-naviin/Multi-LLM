@@ -391,19 +391,103 @@ html, body {
 
 /* ─── Brand gradient ─── */
 .brand-gradient {
-  background: linear-gradient(180deg, #878274, #24221a);
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: #ffffff;
 }
 
 .brand-gradient:hover {
-  background: linear-gradient(180deg, #9a9588, #2f2d22);
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
 }
 
 .brand-gradient-text {
-  background: linear-gradient(180deg, #878274, #24221a);
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* ─── Sidebar ─── */
+.sidebar-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-nav-item:hover {
+  color: var(--text-primary);
+  background: var(--surface-alt);
+}
+
+.sidebar-nav-item.active {
+  color: var(--brand);
+  background: var(--brand-subtle);
+}
+
+.sidebar-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand);
+}
+
+/* Sidebar tooltip */
+.sidebar-tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 100;
+}
+
+.sidebar-nav-item:hover .sidebar-tooltip {
+  opacity: 1;
+}
+
+/* ─── Command Palette ─── */
+@keyframes cmdPaletteFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cmdPaletteSlideIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.cmd-palette-backdrop {
+  animation: cmdPaletteFadeIn 0.15s ease-out;
+}
+
+.cmd-palette-content {
+  animation: cmdPaletteSlideIn 0.15s ease-out;
 }
 
 /* ─── Agent Chat Dropdown animations ─── */

@@ -7,6 +7,7 @@ import { AuthModal } from "@/components/auth/AuthModal";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { TaskModePanel } from "@/components/chat/TaskModePanel";
 import { LoaderDots } from "@/components/common/LoaderDots";
 import { useAlerts } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +29,7 @@ import type {
   Folder,
   ModelName,
   UiMessage,
+  WorkflowStepMessage,
 } from "@/lib/types";
 
 /* ─── Session persistence keys ─── */
@@ -118,6 +120,14 @@ const BEST_ANSWER_LOADING = [
   "Synthesizing the best answer...",
 ];
 
+const TASK_MODE_LOADING = [
+  "Assembling your AI team...",
+  "Running Step 1 of the workflow...",
+  "Agents are collaborating sequentially...",
+  "Progressing through the pipeline...",
+  "Synthesizing the final result...",
+];
+
 function SkeletonMessage() {
   return (
     <div className="animate-fade-in py-2">
@@ -158,6 +168,7 @@ function ChatWorkspace() {
   const [loadingChat, setLoadingChat] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(LOADING_MESSAGES[0]);
   const [bestAnswerMode, setBestAnswerMode] = useState(false);
+  const [taskModeOpen, setTaskModeOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     message: string;
@@ -295,19 +306,32 @@ function ChatWorkspace() {
   }, [loadChats, selectedFolderId, showAlert]);
 
   // Cycle loading messages while waiting for response
+  const loadingSourceRef = useRef<"normal" | "best" | "task">("normal");
+
   useEffect(() => {
     if (!sending) return;
-    const msgs = bestAnswerMode ? BEST_ANSWER_LOADING : LOADING_MESSAGES;
+    const source = taskModeOpen ? "task" : bestAnswerMode ? "best" : "normal";
+    loadingSourceRef.current = source;
+
+    const msgs =
+      source === "task"
+        ? TASK_MODE_LOADING
+        : source === "best"
+          ? BEST_ANSWER_LOADING
+          : LOADING_MESSAGES;
+
     loadingMsgIndexRef.current = 0;
     setLoadingDetail(msgs[0]);
+
+    const delay = source === "task" ? 5000 : source === "best" ? 4000 : 2500;
 
     const interval = setInterval(() => {
       loadingMsgIndexRef.current = (loadingMsgIndexRef.current + 1) % msgs.length;
       setLoadingDetail(msgs[loadingMsgIndexRef.current]);
-    }, bestAnswerMode ? 4000 : 2500);
+    }, delay);
 
     return () => clearInterval(interval);
-  }, [sending, bestAnswerMode]);
+  }, [sending, bestAnswerMode, taskModeOpen]);
 
   // Listen for settings changes (e.g. show_model_info toggled in settings page)
   useEffect(() => {
@@ -628,11 +652,99 @@ function ChatWorkspace() {
     }
   };
 
+  const handleTaskSubmit = async (taskType: string, agents: Record<string, string>, taskPrompt: string) => {
+    if (sending) return;
+
+    setSending(true);
+
+    const now = Date.now();
+
+    const userMessage: UiMessage = {
+      id: `user-${now}`,
+      role: "user",
+      content: taskPrompt,
+      timestamp: now,
+    };
+
+    const loadingId = `assistant-loading-${now}`;
+    const loadingMessage: UiMessage = {
+      id: loadingId,
+      role: "assistant",
+      content: "",
+      loading: true,
+      detail: TASK_MODE_LOADING[0],
+    };
+
+    setMessages((prev) => [...prev, userMessage, loadingMessage]);
+
+    const shouldStore = Boolean(isAuthenticated && storeEnabled && token);
+    const isFirstMessage = !currentChatTitle;
+
+    try {
+      interface TaskModeResponse {
+        ok: boolean;
+        final_answer: string;
+        synthesized_by: string;
+        task_type: string;
+        workflow_chat: WorkflowStepMessage[];
+        response_time_seconds: number;
+        chat_id?: string | null;
+      }
+
+      const response = await apiRequest<TaskModeResponse>("/api/task-mode", {
+        method: "POST",
+        token,
+        body: {
+          task_prompt: taskPrompt,
+          task_type: taskType,
+          agents,
+          store: shouldStore,
+          chat_id: shouldStore ? currentChatId : null,
+          folder_id: shouldStore ? selectedFolderId : null,
+        },
+      });
+
+      const assistantMessage: UiMessage = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: response.final_answer,
+        modelUsed: response.synthesized_by,
+        detail: "Task Mode",
+        animateTypewriter: true,
+        timestamp: Date.now(),
+        isTaskMode: true,
+        taskType: response.task_type,
+        workflowChat: response.workflow_chat,
+        responseTimeSeconds: response.response_time_seconds,
+      };
+
+      setMessages((prev) => {
+        const withoutLoader = prev.filter((item) => item.id !== loadingId);
+        return [...withoutLoader, assistantMessage];
+      });
+
+      if (isFirstMessage) {
+        setCurrentChatTitle(taskPrompt.slice(0, 40) + (taskPrompt.length > 40 ? "..." : ""));
+        generateChatTitle(taskPrompt, response.final_answer);
+      }
+
+      if (response.chat_id && token) {
+        setCurrentChatId(response.chat_id);
+        await loadChats(selectedFolderId);
+      }
+    } catch (error) {
+      setMessages((prev) => prev.filter((item) => item.id !== loadingId));
+      showAlert(error instanceof Error ? error.message : "Failed to run task workflow");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const modelDisplayValue = preferredModel || "auto";
 
   return (
     <>
-      <div className="flex h-[calc(100dvh-49px)] w-full gap-0 overflow-hidden">
+      <div className="flex h-full w-full gap-0 overflow-hidden">
         {/* Desktop sidebar */}
         <div className="hidden w-[260px] shrink-0 border-r border-[var(--border)] lg:block">
           <ChatSidebar
@@ -777,12 +889,24 @@ function ChatWorkspace() {
                     agentChat={item.agentChat}
                     synthesizedBy={item.synthesizedBy}
                     responseTimeSeconds={item.responseTimeSeconds}
+                    isTaskMode={item.isTaskMode}
+                    taskType={item.taskType}
+                    workflowChat={item.workflowChat}
                   />
                 ))
               )}
               <div ref={messageEndRef} />
             </div>
           </div>
+
+          {/* Task Mode Panel — shown above composer when active */}
+          {taskModeOpen && (
+            <TaskModePanel
+              onSubmit={handleTaskSubmit}
+              onClose={() => setTaskModeOpen(false)}
+              disabled={sending}
+            />
+          )}
 
           {/* Composer */}
           <ChatComposer
@@ -791,7 +915,9 @@ function ChatWorkspace() {
             onSend={sendPrompt}
             disabled={sending}
             bestAnswerMode={bestAnswerMode}
+            taskModeOpen={taskModeOpen}
             onToggleBestAnswer={setBestAnswerMode}
+            onToggleTaskMode={() => setTaskModeOpen((prev) => !prev)}
           />
         </div>
       </div>

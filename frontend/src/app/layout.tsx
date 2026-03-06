@@ -1,10 +1,12 @@
 "use client";
 
 import { Inter } from "next/font/google";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 import { AlertStack } from "@/components/common/AlertStack";
-import { Navbar } from "@/components/layout/Navbar";
+import { AppSidebar } from "@/components/layout/AppSidebar";
+import { TopBar } from "@/components/layout/TopBar";
+import { CommandPalette } from "@/components/layout/CommandPalette";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { THEME_KEY } from "@/lib/constants";
 
@@ -16,39 +18,51 @@ const themeInitScript = `
 (() => {
   try {
     const stored = localStorage.getItem('${THEME_KEY}');
-    const theme = stored === 'light' ? 'light' : 'dark';
+    const theme = stored === 'dark' ? 'dark' : 'light';
     const root = document.documentElement;
     root.setAttribute('data-theme', theme);
     root.classList.toggle('dark', theme === 'dark');
     root.style.colorScheme = theme;
   } catch {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    document.documentElement.classList.add('dark');
-    document.documentElement.style.colorScheme = 'dark';
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.style.colorScheme = 'light';
   }
 })();
 `;
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const isChatPage = pathname === "/chat" || pathname.startsWith("/chat/");
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+
+  const openCommandPalette = useCallback(() => setCmdPaletteOpen(true), []);
+  const closeCommandPalette = useCallback(() => setCmdPaletteOpen(false), []);
+
+  // Global ⌘K / Ctrl+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
-    <div className="relative z-10 flex min-h-screen flex-col">
-      <Navbar />
-      <main className="min-h-0 flex-1">{children}</main>
-      <AlertStack />
+    <div className="relative z-10 flex flex-col md:flex-row h-dvh overflow-hidden">
+      {/* Sidebar — desktop persistent, mobile overlay */}
+      <AppSidebar />
 
-      {!isChatPage && (
-        <footer className="shrink-0 border-t border-[var(--border)] bg-[var(--background)] px-4 py-3">
-          <div className="mx-auto flex items-center justify-center gap-4 text-xs text-[var(--text-soft)]">
-            <span>&copy; {new Date().getFullYear()} Swastik AI</span>
-            <span className="text-[var(--border)]">&middot;</span>
-            <a href="#" className="hover:text-[var(--text-primary)] transition-colors">Terms</a>
-            <a href="#" className="hover:text-[var(--text-primary)] transition-colors">Privacy</a>
-          </div>
-        </footer>
-      )}
+      {/* Main content area */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <TopBar onOpenCommandPalette={openCommandPalette} />
+
+        <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+      </div>
+
+      {/* Global overlays */}
+      <AlertStack />
+      <CommandPalette open={cmdPaletteOpen} onClose={closeCommandPalette} />
     </div>
   );
 }
