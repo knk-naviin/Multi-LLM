@@ -61,6 +61,7 @@ export interface UiMessage {
   detail?: string;
   loading?: boolean;
   animateTypewriter?: boolean;
+  isStreaming?: boolean;
   timestamp?: number;
   isBestAnswer?: boolean;
   agentChat?: AgentChatMessage[];

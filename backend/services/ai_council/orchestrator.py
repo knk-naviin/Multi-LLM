@@ -225,8 +225,22 @@ class ConversationOrchestrator:
                     agent_key, prompt, all_responses,
                 )
 
-            # Call agent (one at a time — sequential)
-            response = await self.manager.call_agent(agent_key, agent_prompt)
+            # Stream agent tokens (one at a time — sequential)
+            response: AgentResponse | None = None
+            async for item in self.manager.stream_agent(agent_key, agent_prompt):
+                if isinstance(item, str):
+                    yield _sse({
+                        "type": "agent_token",
+                        "agent": agent_key,
+                        "content": item,
+                        "sequence": idx + 1,
+                    })
+                elif isinstance(item, AgentResponse):
+                    response = item
+
+            if response is None:
+                continue
+
             response.round_num = 1
             response.response_type = "debate"
 
@@ -283,23 +297,35 @@ class ConversationOrchestrator:
         })
 
         synth_prompt = self.debate._sequential_synthesis_prompt(prompt, all_responses)
-        synthesis = await self.manager.call_agent(synth_agent, synth_prompt)
-        synthesis.round_num = 2
-        synthesis.response_type = "synthesis"
-        total_tokens += synthesis.token_estimate
 
-        if synth_agent in metrics:
-            metrics[synth_agent]["times"].append(synthesis.response_time)
-            metrics[synth_agent]["tokens"] += synthesis.token_estimate
+        synthesis: AgentResponse | None = None
+        async for item in self.manager.stream_agent(synth_agent, synth_prompt):
+            if isinstance(item, str):
+                yield _sse({
+                    "type": "synthesis_token",
+                    "agent": synth_agent,
+                    "content": item,
+                })
+            elif isinstance(item, AgentResponse):
+                synthesis = item
 
-        yield _sse({
-            "type": "synthesis",
-            "agent": synthesis.agent,
-            "content": synthesis.content,
-            "response_time": synthesis.response_time,
-            "tokens": synthesis.token_estimate,
-            "error": synthesis.error,
-        })
+        if synthesis:
+            synthesis.round_num = 2
+            synthesis.response_type = "synthesis"
+            total_tokens += synthesis.token_estimate
+
+            if synth_agent in metrics:
+                metrics[synth_agent]["times"].append(synthesis.response_time)
+                metrics[synth_agent]["tokens"] += synthesis.token_estimate
+
+            yield _sse({
+                "type": "synthesis",
+                "agent": synthesis.agent,
+                "content": synthesis.content,
+                "response_time": synthesis.response_time,
+                "tokens": synthesis.token_estimate,
+                "error": synthesis.error,
+            })
 
         # ── Done ──
         yield self._done_event(t0, total_tokens, metrics, {})

@@ -149,6 +149,9 @@ function TaskModeWorkspace() {
   const [isComplete, setIsComplete] = useState(false);
   const [timelineSteps, setTimelineSteps] = useState<TimelineStep[]>([]);
   const [agentMessages, setAgentMessages] = useState<AgentConversationMessage[]>([]);
+  const [streamingStep, setStreamingStep] = useState<{
+    step: string; stepLabel: string; agent: string; content: string; iteration: number;
+  } | null>(null);
   const [finalResult, setFinalResult] = useState<{
     content: string;
     agent?: string;
@@ -339,6 +342,7 @@ function TaskModeWorkspace() {
 
       case "step_start": {
         const stepId = `${data.step}-iter-${data.iteration}`;
+        setStreamingStep(null);
         setTimelineSteps((prev) => {
           const existing = prev.find((s) => s.id === stepId);
           if (existing) {
@@ -361,7 +365,25 @@ function TaskModeWorkspace() {
         break;
       }
 
+      case "step_token": {
+        const token = data.content as string;
+        setStreamingStep((prev) => {
+          if (prev && prev.step === (data.step as string) && prev.iteration === (data.iteration as number)) {
+            return { ...prev, content: prev.content + token };
+          }
+          return {
+            step: data.step as string,
+            stepLabel: data.step as string,
+            agent: data.agent as string,
+            content: token,
+            iteration: (data.iteration as number) || 1,
+          };
+        });
+        break;
+      }
+
       case "step_complete": {
+        setStreamingStep(null);
         const stepId = `${data.step}-iter-${data.iteration}`;
         setTimelineSteps((prev) => {
           const updated = prev.map((s) =>
@@ -482,6 +504,7 @@ function TaskModeWorkspace() {
         break;
 
       case "done":
+        setStreamingStep(null);
         setIsRunning(false);
         setIsComplete(true);
         setTotalTime(data.total_time as number);
@@ -493,6 +516,7 @@ function TaskModeWorkspace() {
         break;
 
       case "error":
+        setStreamingStep(null);
         showAlert(data.message as string || "Workflow error occurred");
         setIsRunning(false);
         break;
@@ -895,6 +919,7 @@ function TaskModeWorkspace() {
 
             <AgentConversationPanel
               messages={agentMessages}
+              streamingStep={streamingStep}
               finalResult={finalResult}
               totalTime={totalTime}
               totalTokens={totalTokens}

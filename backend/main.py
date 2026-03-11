@@ -1191,6 +1191,124 @@ async def chat_complete(
     return {"ok": True, **completion, "chat_id": stored_chat_id}
 
 
+# ─── Streaming Chat (token-by-token SSE) ──────────────────────────────
+
+
+def _chat_sse(data: dict) -> str:
+    """Format a dict as an SSE data line."""
+    import json as _json
+    return f"data: {_json.dumps(data, default=str)}\n\n"
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(
+    payload: ChatCompleteRequest,
+    request: Request,
+    optional_auth=Depends(get_optional_auth),
+):
+    """Stream chat tokens via SSE instead of returning a complete JSON response."""
+    prompt = _extract_prompt(payload)
+
+    async def _event_generator():
+        import uuid as _uuid
+
+        stream_id = str(_uuid.uuid4())[:8]
+        started = utc_now()
+        routing = rank_models(prompt)
+        ranking = routing["ranking"]
+
+        if payload.forced_model:
+            forced = payload.forced_model.strip().lower()
+            candidate_models = [forced] + [
+                entry["model"] for entry in ranking if entry["model"] != forced
+            ]
+        else:
+            candidate_models = [entry["model"] for entry in ranking]
+
+        from models.streaming import STREAM_FUNCTIONS, async_stream_wrapper
+
+        errors = []
+        selected_model = None
+        full_content: list[str] = []
+
+        for model_name in candidate_models:
+            stream_fn = STREAM_FUNCTIONS.get(model_name)
+            if not stream_fn:
+                errors.append(f"{model_name}: no streaming function")
+                continue
+
+            try:
+                yield _chat_sse({
+                    "type": "stream_start",
+                    "model": model_name,
+                    "stream_id": stream_id,
+                })
+
+                async for token in async_stream_wrapper(stream_fn, prompt):
+                    full_content.append(token)
+                    yield _chat_sse({
+                        "type": "token",
+                        "content": token,
+                        "stream_id": stream_id,
+                    })
+
+                selected_model = model_name
+                break
+            except GeminiRateLimitError as exc:
+                errors.append(f"{model_name}: {exc}")
+                full_content.clear()
+            except Exception as exc:
+                errors.append(f"{model_name}: {exc}")
+                full_content.clear()
+
+        if selected_model is None:
+            yield _chat_sse({
+                "type": "stream_error",
+                "message": f"All providers failed: {errors}",
+            })
+            return
+
+        elapsed = (utc_now() - started).total_seconds()
+        complete_response = "".join(full_content)
+
+        stored_chat_id = None
+        if payload.store:
+            db = getattr(request.app.state, "db", None)
+            if db is not None and optional_auth:
+                try:
+                    stored_chat_id = await _persist_chat_turn(
+                        db=db,
+                        user_id=optional_auth["user"]["_id"],
+                        prompt=prompt,
+                        assistant_response=complete_response,
+                        model_selected=selected_model,
+                        chat_id=payload.chat_id,
+                        folder_id=payload.folder_id,
+                        project_id=payload.project_id,
+                    )
+                except Exception:
+                    pass
+
+        yield _chat_sse({
+            "type": "stream_complete",
+            "model": selected_model,
+            "domain": routing.get("domain"),
+            "response_time": round(elapsed, 2),
+            "chat_id": stored_chat_id,
+            "stream_id": stream_id,
+        })
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 # Backward compatibility route
 @app.post("/chat")
 async def legacy_chat(payload: ChatCompleteRequest):

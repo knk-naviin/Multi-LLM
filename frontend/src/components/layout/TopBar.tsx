@@ -31,8 +31,16 @@ interface TopBarProps {
   onOpenCommandPalette?: () => void;
 }
 
+// Pages that have their own header bar — skip the global TopBar
+const PAGES_WITH_OWN_HEADER = ["/council", "/task-mode", "/chat"];
+
 export function TopBar({ onOpenCommandPalette }: TopBarProps) {
   const pathname = usePathname();
+
+  if (PAGES_WITH_OWN_HEADER.some((p) => pathname.startsWith(p))) {
+    return null;
+  }
+
   const title = getPageTitle(pathname);
 
   return (

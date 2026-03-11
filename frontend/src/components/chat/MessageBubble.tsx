@@ -9,6 +9,8 @@ import { BRAND_GRADIENT } from "@/lib/brand";
 import { AgentChatDropdown } from "@/components/chat/AgentChatDropdown";
 import { TaskWorkflowDropdown } from "@/components/chat/TaskWorkflowDropdown";
 import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
+import { StreamingMessage } from "@/components/ui/StreamingMessage";
+import { TypingIndicator } from "@/components/ui/TypingIndicator";
 import type { AgentChatMessage, WorkflowStepMessage } from "@/lib/types";
 
 interface MessageBubbleProps {
@@ -19,6 +21,7 @@ interface MessageBubbleProps {
   loading?: boolean;
   loadingNode?: React.ReactNode;
   animateTypewriter?: boolean;
+  isStreaming?: boolean;
   showModelInfo?: boolean;
   timestamp?: number;
   isBestAnswer?: boolean;
@@ -96,6 +99,7 @@ export function MessageBubble({
   loading,
   loadingNode,
   animateTypewriter,
+  isStreaming,
   showModelInfo = true,
   timestamp,
   isBestAnswer,
@@ -148,7 +152,13 @@ export function MessageBubble({
   return (
     <div className="animate-fade-in py-2 select-text">
       <div className="text-[14px] leading-7 text-[var(--text-primary)] overflow-hidden">
-        {animateTypewriter && !loading ? (
+        {isStreaming ? (
+          content.length === 0 ? (
+            <TypingIndicator label="Generating response..." />
+          ) : (
+            <StreamingMessage content={content} isStreaming={true} />
+          )
+        ) : animateTypewriter && !loading ? (
           <StreamingText content={content} />
         ) : (
           <div className="prose prose-sm max-w-none select-text break-words prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">

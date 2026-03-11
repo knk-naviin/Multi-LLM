@@ -11,7 +11,7 @@ import re
 from typing import AsyncGenerator
 
 from services.ai_council.agents import AgentManager
-from services.task_mode.agent_executor import execute_step
+from services.task_mode.agent_executor import execute_step, stream_step, StepResult
 
 logger = logging.getLogger("task_mode")
 
@@ -113,13 +113,27 @@ class ReviewLoopManager:
                 "iteration": iteration,
             })
 
-            dev_result = await execute_step(
+            dev_result: StepResult | None = None
+            async for item in stream_step(
                 manager=self.manager,
                 agent_key=self.developer_agent,
                 role_key=self.developer_role_key,
                 role_label=self.developer_role_label,
                 prompt=dev_prompt,
-            )
+            ):
+                if isinstance(item, str):
+                    yield _sse({
+                        "type": "step_token",
+                        "step": self.developer_role_key,
+                        "agent": self.developer_agent,
+                        "content": item,
+                        "iteration": iteration,
+                    })
+                elif isinstance(item, StepResult):
+                    dev_result = item
+
+            if dev_result is None:
+                return
 
             step_label = self.developer_role_label + (
                 f" (Revision {iteration - 1})" if iteration > 1 else ""
@@ -180,13 +194,28 @@ class ReviewLoopManager:
                 "iteration": iteration,
             })
 
-            review_result = await execute_step(
+            review_result: StepResult | None = None
+            async for item in stream_step(
                 manager=self.manager,
                 agent_key=self.reviewer_agent,
                 role_key=self.reviewer_role_key,
                 role_label=self.reviewer_role_label,
                 prompt=review_prompt,
-            )
+            ):
+                if isinstance(item, str):
+                    yield _sse({
+                        "type": "step_token",
+                        "step": self.reviewer_role_key,
+                        "agent": self.reviewer_agent,
+                        "content": item,
+                        "iteration": iteration,
+                    })
+                elif isinstance(item, StepResult):
+                    review_result = item
+
+            if review_result is None:
+                self.final_output = previous_output
+                return
 
             yield _sse({
                 "type": "step_complete",

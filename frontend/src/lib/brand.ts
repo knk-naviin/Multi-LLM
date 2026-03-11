@@ -9,9 +9,9 @@ export const BRAND_NAME = "Swastik Ai";
 export const BRAND_TAGLINE = "Multi-LLM AI Router";
 
 /* ─── Logo ─── */
-export const BRAND_LOGO = "/finallogo.jpeg"; // Place your logo at frontend/public/logo.png
-export const BRAND_LOGO_SIZE = 60; // px — used in Navbar
-export const BRAND_FAVICON = "/logo.svg"; // browser tab icon
+export const BRAND_LOGO = "/finallogo.png"; // Place your logo at frontend/public/logo.png
+export const BRAND_LOGO_SIZE = 100; // px — used in Navbar
+export const BRAND_FAVICON = "/finallogo.svg"; // browser tab icon
 
 /* ─── Gradient ─── */
 export const BRAND_GRADIENT = "linear-gradient(135deg, #6366f1, #8b5cf6)";

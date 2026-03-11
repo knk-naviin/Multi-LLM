@@ -19,6 +19,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
+import { StreamingMessage } from "@/components/ui/StreamingMessage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAlerts } from "@/contexts/AlertContext";
 import { BRAND_GRADIENT } from "@/lib/brand";
@@ -98,6 +99,7 @@ function DebateBubble({
   tokens,
   error,
   animate,
+  isStreaming,
 }: {
   agent: string;
   agentName: string;
@@ -109,6 +111,7 @@ function DebateBubble({
   tokens?: number;
   error?: string;
   animate?: boolean;
+  isStreaming?: boolean;
 }) {
   const colors = AGENT_COLORS[agent] || AGENT_COLORS.gpt;
   const alignment = getAlignment(stance);
@@ -185,7 +188,9 @@ function DebateBubble({
                 : { background: "var(--surface)", border: "1px solid var(--border)" }
             }
           >
-            {animate ? (
+            {isStreaming ? (
+              <StreamingMessage content={content} isStreaming={true} proseClass={proseClass} />
+            ) : animate ? (
               <StreamingMarkdown content={content} proseClass={proseClass} />
             ) : (
               <div className={proseClass}>
@@ -276,12 +281,14 @@ function SynthesisBubble({
   responseTime,
   tokens,
   animate,
+  isStreaming,
 }: {
   content: string;
   agent: string;
   responseTime?: number;
   tokens?: number;
   animate?: boolean;
+  isStreaming?: boolean;
 }) {
   return (
     <div className="animate-fade-in my-2">
@@ -295,7 +302,13 @@ function SynthesisBubble({
             synthesized via {AGENT_LABELS[agent]?.name || agent}
           </span>
         </div>
-        {animate ? (
+        {isStreaming ? (
+          <StreamingMessage
+            content={content}
+            isStreaming={true}
+            proseClass="prose prose-sm max-w-none text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-p:my-1 prose-pre:bg-[#1e1e1e] prose-pre:text-[#d4d4d4] select-text"
+          />
+        ) : animate ? (
           <StreamingMarkdown
             content={content}
             proseClass="prose prose-sm max-w-none text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-p:my-1 prose-pre:bg-[#1e1e1e] prose-pre:text-[#d4d4d4] select-text"
@@ -411,6 +424,12 @@ function CouncilWorkspace() {
   const [debating, setDebating] = useState(false);
   const [typingAgent, setTypingAgent] = useState<TypingAgentState | null>(null);
   const [viewMode, setViewMode] = useState<"chat" | "tree">("chat");
+  const [streamingDebate, setStreamingDebate] = useState<{
+    agent: string; name: string; role: string; content: string; sequence: number; total: number;
+  } | null>(null);
+  const [streamingSynthesis, setStreamingSynthesis] = useState<{
+    agent: string; content: string;
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -419,7 +438,7 @@ function CouncilWorkspace() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, typingAgent]);
+  }, [messages, typingAgent, streamingDebate, streamingSynthesis]);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -445,10 +464,35 @@ function CouncilWorkspace() {
           sequence: data.sequence as number,
           total: data.total as number,
         });
+        // Initialize streaming state for the next agent
+        setStreamingDebate(null);
+        break;
+
+      case "agent_token":
+        // Clear typing indicator once tokens start flowing
+        setTypingAgent(null);
+        setStreamingDebate((prev) => {
+          const agent = data.agent as string;
+          const token = data.content as string;
+          if (prev && prev.agent === agent) {
+            return { ...prev, content: prev.content + token };
+          }
+          // First token from a new agent — initialize
+          const cfg = AGENT_LABELS[agent];
+          return {
+            agent,
+            name: cfg?.name || agent,
+            role: "",
+            content: token,
+            sequence: (data.sequence as number) || 1,
+            total: 0,
+          };
+        });
         break;
 
       case "debate_response":
         setTypingAgent(null);
+        setStreamingDebate(null);
         setMessages((prev) => [
           ...prev,
           {
@@ -470,8 +514,21 @@ function CouncilWorkspace() {
         ]);
         break;
 
+      case "synthesis_token":
+        // Clear typing indicator once synthesis tokens flow
+        setTypingAgent(null);
+        setStreamingSynthesis((prev) => {
+          const token = data.content as string;
+          if (prev) {
+            return { ...prev, content: prev.content + token };
+          }
+          return { agent: data.agent as string, content: token };
+        });
+        break;
+
       case "synthesis":
         setTypingAgent(null);
+        setStreamingSynthesis(null);
         setMessages((prev) => [
           ...prev,
           {
@@ -586,6 +643,8 @@ function CouncilWorkspace() {
     } finally {
       setDebating(false);
       setTypingAgent(null);
+      setStreamingDebate(null);
+      setStreamingSynthesis(null);
       abortRef.current = null;
     }
   }, [prompt, debating, token, showAlert]);
@@ -774,6 +833,28 @@ function CouncilWorkspace() {
                   return null;
               }
             })}
+
+            {/* Live streaming debate bubble */}
+            {streamingDebate && streamingDebate.content.length > 0 && (
+              <DebateBubble
+                agent={streamingDebate.agent}
+                agentName={streamingDebate.name}
+                role={streamingDebate.role}
+                stance={"initiate" as DebateStance}
+                references={[]}
+                content={streamingDebate.content}
+                isStreaming={true}
+              />
+            )}
+
+            {/* Live streaming synthesis bubble */}
+            {streamingSynthesis && streamingSynthesis.content.length > 0 && (
+              <SynthesisBubble
+                content={streamingSynthesis.content}
+                agent={streamingSynthesis.agent}
+                isStreaming={true}
+              />
+            )}
 
             {/* Typing indicator */}
             {typingAgent && (

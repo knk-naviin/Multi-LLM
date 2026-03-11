@@ -48,10 +48,11 @@ function saveSession(chatId: string | null, title: string | null, messages: UiMe
     if (hasRealMessages) {
       // Strip transient flags so restored messages render instantly (no re-animation)
       const cleaned = messages
-        .filter((m) => !m.loading) // drop any in-flight loading placeholders
+        .filter((m) => !m.loading && !m.isStreaming) // drop any in-flight loading/streaming placeholders
         .map((m) => ({
           ...m,
           animateTypewriter: false,
+          isStreaming: false,
         }));
       sessionStorage.setItem(SESSION_MESSAGES, JSON.stringify(cleaned));
     } else {
@@ -178,6 +179,7 @@ function ChatWorkspace() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const sessionRestoredRef = useRef(false);
   const loadingMsgIndexRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const selectedFolder = useMemo(
     () => folders.find((f) => f.id === selectedFolderId),
@@ -517,6 +519,32 @@ function ChatWorkspace() {
     [token]
   );
 
+  const stopGeneration = useCallback(() => {
+    // Abort any in-flight SSE stream
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Finalize any streaming messages with whatever content was accumulated
+    setMessages((prev) =>
+      prev
+        .filter((m) => !m.loading) // remove loading placeholders
+        .map((m) =>
+          m.isStreaming
+            ? {
+                ...m,
+                isStreaming: false,
+                content: m.content || "(Generation stopped)",
+                detail: m.detail || "Stopped",
+              }
+            : m
+        )
+    );
+
+    setSending(false);
+  }, []);
+
   const sendPrompt = async () => {
     if (sending) return;
 
@@ -601,53 +629,153 @@ function ChatWorkspace() {
           await loadChats(selectedFolderId);
         }
       } else {
-        // ── Normal Mode ──
-        const response = await apiRequest<ChatCompletionResponse>("/api/chat/complete", {
+        // ── Normal Mode (SSE streaming) ──
+        const streamingId = `assistant-streaming-${now}`;
+        const streamingMessage: UiMessage = {
+          id: streamingId,
+          role: "assistant",
+          content: "",
+          isStreaming: true,
+          timestamp: Date.now(),
+        };
+
+        // Replace loading placeholder with streaming placeholder
+        setMessages((prev) => {
+          const withoutLoader = prev.filter((item) => item.id !== loadingId);
+          return [...withoutLoader, streamingMessage];
+        });
+
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        // Create AbortController so the stream can be cancelled
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        const res = await fetch("/api/proxy/api/chat/stream", {
           method: "POST",
-          token,
-          body: {
+          headers,
+          signal: controller.signal,
+          body: JSON.stringify({
             prompt: text,
             forced_model: preferredModel,
             store: shouldStore,
             chat_id: shouldStore ? currentChatId : null,
             folder_id: shouldStore ? selectedFolderId : null,
-          },
+          }),
         });
 
-        const fallback =
-          response.fallback_errors && response.fallback_errors.length
-            ? ` | Fallback: ${response.fallback_errors[0]}`
-            : "";
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || `HTTP ${res.status}`);
+        }
 
-        const assistantMessage: UiMessage = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: response.response,
-          modelUsed: response.model_selected,
-          detail: `${response.domain || "general"}${fallback}`,
-          animateTypewriter: true,
-          timestamp: Date.now(),
-        };
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response body");
 
-        setMessages((prev) => {
-          const withoutLoader = prev.filter((item) => item.id !== loadingId);
-          return [...withoutLoader, assistantMessage];
-        });
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let streamModel = "";
+        let streamDomain = "";
+        let streamChatId: string | null = null;
+        let accumulated = "";
+        let streamError: string | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const evt = JSON.parse(line.slice(6));
+              if (evt.type === "stream_start") {
+                streamModel = evt.model || "";
+              } else if (evt.type === "token") {
+                accumulated += evt.content || "";
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === streamingId ? { ...m, content: accumulated } : m
+                  )
+                );
+              } else if (evt.type === "stream_complete") {
+                streamModel = evt.model || streamModel;
+                streamDomain = evt.domain || "";
+                streamChatId = evt.chat_id || null;
+              } else if (evt.type === "stream_error") {
+                streamError = evt.message || "Stream error";
+              }
+            } catch {
+              // skip malformed JSON
+            }
+          }
+
+          if (streamError) break;
+        }
+
+        // Process remaining buffer
+        if (buffer.startsWith("data: ")) {
+          try {
+            const evt = JSON.parse(buffer.slice(6));
+            if (evt.type === "stream_complete") {
+              streamModel = evt.model || streamModel;
+              streamDomain = evt.domain || "";
+              streamChatId = evt.chat_id || null;
+            } else if (evt.type === "stream_error") {
+              streamError = evt.message || "Stream error";
+            }
+          } catch {
+            // skip
+          }
+        }
+
+        // Clear the abort controller now that the stream has finished
+        abortControllerRef.current = null;
+
+        if (streamError) {
+          // Remove the streaming placeholder and show error
+          setMessages((prev) => prev.filter((m) => m.id !== streamingId));
+          throw new Error(streamError);
+        }
+
+        // Finalize: mark streaming complete with final metadata
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamingId
+              ? {
+                  ...m,
+                  content: accumulated,
+                  isStreaming: false,
+                  modelUsed: streamModel,
+                  detail: streamDomain || "general",
+                }
+              : m
+          )
+        );
 
         if (isFirstMessage) {
           setCurrentChatTitle(text.slice(0, 40) + (text.length > 40 ? "..." : ""));
-          generateChatTitle(text, response.response);
+          generateChatTitle(text, accumulated);
         }
 
-        if (response.chat_id && token) {
-          setCurrentChatId(response.chat_id);
+        if (streamChatId && token) {
+          setCurrentChatId(streamChatId);
           await loadChats(selectedFolderId);
         }
       }
     } catch (error) {
-      setMessages((prev) => prev.filter((item) => item.id !== loadingId));
+      // If the user aborted the stream, stopGeneration() already cleaned up
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+      setMessages((prev) => prev.filter((item) => item.id !== loadingId && !item.isStreaming));
       showAlert(error instanceof Error ? error.message : "Failed to send prompt");
     } finally {
+      abortControllerRef.current = null;
       setSending(false);
     }
   };
@@ -913,7 +1041,9 @@ function ChatWorkspace() {
             value={prompt}
             onChange={setPrompt}
             onSend={sendPrompt}
+            onStop={stopGeneration}
             disabled={sending}
+            isGenerating={sending}
             bestAnswerMode={bestAnswerMode}
             taskModeOpen={taskModeOpen}
             onToggleBestAnswer={setBestAnswerMode}

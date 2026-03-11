@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { sharedMarkdownComponents } from "@/components/ui/MarkdownRenderer";
+import { StreamingMessage } from "@/components/ui/StreamingMessage";
 import { TaskFollowUpChat } from "@/components/taskmode/TaskFollowUpChat";
 import { BRAND_GRADIENT } from "@/lib/brand";
 import type { AgentConversationMessage, FollowUpMessage } from "@/lib/types";
@@ -76,12 +77,17 @@ function AgentAvatar({ agent, label }: { agent: string; label?: string }) {
 function AgentBubble({
   msg,
   animate,
+  isStreaming,
 }: {
   msg: AgentConversationMessage;
   animate: boolean;
+  isStreaming?: boolean;
 }) {
   const colors = AGENT_COLORS[msg.agent] || { bg: "#6b728014", text: "#6b7280", border: "#6b728040" };
   const hasError = !!msg.error;
+
+  const proseClass =
+    "prose prose-sm max-w-none break-words text-[var(--text-secondary)] prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit";
 
   return (
     <div className="animate-fade-in flex gap-3 py-3">
@@ -107,16 +113,18 @@ function AgentBubble({
           <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-400">
             {msg.error}
           </div>
+        ) : isStreaming ? (
+          <StreamingMessage content={msg.content} isStreaming={true} proseClass={proseClass} />
         ) : animate ? (
           <StreamingMarkdown content={msg.content} />
         ) : (
-          <div className="prose prose-sm max-w-none break-words text-[var(--text-secondary)] prose-headings:text-inherit prose-p:text-inherit prose-strong:text-inherit prose-a:text-inherit">
+          <div className={proseClass}>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={sharedMarkdownComponents}>{msg.content}</ReactMarkdown>
           </div>
         )}
 
         {/* Footer */}
-        {!hasError && (
+        {!hasError && !isStreaming && (
           <div className="mt-1.5 flex items-center gap-3 text-[10px] text-[var(--text-soft)]">
             <span className="flex items-center gap-1">
               <Clock size={9} />
@@ -237,6 +245,13 @@ function FinalResultWrapper({
 
 interface AgentConversationPanelProps {
   messages: AgentConversationMessage[];
+  streamingStep?: {
+    step: string;
+    stepLabel: string;
+    agent: string;
+    content: string;
+    iteration: number;
+  } | null;
   finalResult: {
     content: string;
     agent?: string;
@@ -254,6 +269,7 @@ interface AgentConversationPanelProps {
 
 export function AgentConversationPanel({
   messages,
+  streamingStep,
   finalResult,
   totalTime,
   totalTokens,
@@ -267,7 +283,7 @@ export function AgentConversationPanel({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, finalResult]);
+  }, [messages, finalResult, streamingStep]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-4 sm:px-6">
@@ -287,6 +303,25 @@ export function AgentConversationPanel({
             <AgentBubble key={msg.id} msg={msg} animate={shouldAnimate} />
           );
         })}
+
+        {/* Live streaming step */}
+        {streamingStep && streamingStep.content.length > 0 && (
+          <AgentBubble
+            msg={{
+              id: `streaming-${streamingStep.step}-${streamingStep.iteration}`,
+              step: streamingStep.step,
+              stepLabel: streamingStep.stepLabel,
+              agent: streamingStep.agent,
+              agentName: streamingStep.agent.toUpperCase(),
+              content: streamingStep.content,
+              responseTime: 0,
+              tokens: 0,
+              iteration: streamingStep.iteration,
+            }}
+            animate={false}
+            isStreaming={true}
+          />
+        )}
       </div>
 
       {/* Final Result */}

@@ -7,13 +7,14 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import AsyncGenerator, Callable, Optional, Union
 
 from config import OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, GROK_API_KEY
 from models.gpt import call_gpt
 from models.gemini import call_gemini, can_call_gemini
 from models.claude import call_claude
 from models.grok import call_grok
+from models.streaming import STREAM_FUNCTIONS, async_stream_wrapper
 
 logger = logging.getLogger("ai_council")
 
@@ -145,6 +146,71 @@ class AgentManager:
                 agent=agent_key,
                 role=config.role,
                 content="",
+                response_time=round(elapsed, 2),
+                token_estimate=0,
+                round_num=0,
+                error=str(e),
+            )
+
+    async def stream_agent(
+        self, agent_key: str, prompt: str
+    ) -> AsyncGenerator[Union[str, AgentResponse], None]:
+        """Stream tokens from an agent, then yield a final AgentResponse.
+
+        Callers distinguish token chunks (str) from the final result
+        via isinstance(item, str) vs isinstance(item, AgentResponse).
+        Falls back to non-streaming call_agent() if no streaming function.
+        """
+        config = self.agents.get(agent_key)
+        if not config:
+            yield AgentResponse(
+                agent=agent_key, role="Unknown", content="",
+                response_time=0, token_estimate=0, round_num=0,
+                error=f"Agent {agent_key} not available",
+            )
+            return
+
+        if agent_key == "gemini" and not can_call_gemini():
+            yield AgentResponse(
+                agent=agent_key, role=config.role, content="",
+                response_time=0, token_estimate=0, round_num=0,
+                error="Gemini rate limited — skipped",
+            )
+            return
+
+        stream_fn = STREAM_FUNCTIONS.get(agent_key)
+        if not stream_fn:
+            # No streaming variant — fall back to full call
+            result = await self.call_agent(agent_key, prompt)
+            yield result.content
+            yield result
+            return
+
+        start = time.time()
+        chunks: list[str] = []
+        try:
+            async for token in async_stream_wrapper(stream_fn, prompt):
+                chunks.append(token)
+                yield token
+
+            full_content = "".join(chunks)
+            elapsed = time.time() - start
+            token_estimate = max(1, len(full_content.split()) * 4 // 3)
+            yield AgentResponse(
+                agent=agent_key,
+                role=config.role,
+                content=full_content,
+                response_time=round(elapsed, 2),
+                token_estimate=token_estimate,
+                round_num=0,
+            )
+        except Exception as e:
+            elapsed = time.time() - start
+            logger.warning("Agent %s streaming failed: %s", agent_key, e)
+            yield AgentResponse(
+                agent=agent_key,
+                role=config.role,
+                content="".join(chunks),
                 response_time=round(elapsed, 2),
                 token_estimate=0,
                 round_num=0,

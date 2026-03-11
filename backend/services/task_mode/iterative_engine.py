@@ -19,7 +19,7 @@ from services.ai_council.agents import AgentManager
 from services.task_mode.task_router import get_task_config, TASK_TYPES
 from services.task_mode.review_loop_manager import ReviewLoopManager
 from services.task_mode.qc_validator import QCValidator
-from services.task_mode.final_synthesizer import synthesize_final
+from services.task_mode.final_synthesizer import synthesize_final, stream_synthesize_final
 
 logger = logging.getLogger("task_mode")
 
@@ -174,14 +174,34 @@ class IterativeWorkflowEngine:
             "iteration": 1,
         })
 
+        synth: dict | None = None
         if valid_steps:
-            synth = await synthesize_final(
+            async for item in stream_synthesize_final(
                 manager=self.manager,
                 task_prompt=task_prompt,
                 task_type=self.task_type,
                 workflow_outputs=valid_steps,
-            )
+            ):
+                if isinstance(item, str):
+                    yield _sse({
+                        "type": "step_token",
+                        "step": "final_synthesis",
+                        "agent": dev_agent,
+                        "content": item,
+                        "iteration": 1,
+                    })
+                elif isinstance(item, dict):
+                    synth = item
         else:
+            synth = {
+                "content": qc_validator.final_output or review_loop.final_output or "Workflow produced no output.",
+                "agent": dev_agent,
+                "agent_name": dev_agent.upper(),
+                "response_time": 0,
+                "tokens": 0,
+            }
+
+        if synth is None:
             synth = {
                 "content": qc_validator.final_output or review_loop.final_output or "Workflow produced no output.",
                 "agent": dev_agent,
