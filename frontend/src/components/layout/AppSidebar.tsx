@@ -76,7 +76,9 @@ export function AppSidebar() {
     const handler = () => {
       setCollapsed((prev) => {
         const next = !prev;
-        try { localStorage.setItem(SIDEBAR_KEY, String(next)); } catch {}
+        try {
+          localStorage.setItem(SIDEBAR_KEY, String(next));
+        } catch {}
         return next;
       });
     };
@@ -87,7 +89,9 @@ export function AppSidebar() {
   const toggleCollapse = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
-      try { localStorage.setItem(SIDEBAR_KEY, String(next)); } catch {}
+      try {
+        localStorage.setItem(SIDEBAR_KEY, String(next));
+      } catch {}
       return next;
     });
   }, []);
@@ -106,7 +110,8 @@ export function AppSidebar() {
   };
 
   const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/" || pathname === "/dashboard";
+    if (href === "/dashboard")
+      return pathname === "/" || pathname === "/dashboard";
     if (href === "/chat") return pathname.startsWith("/chat");
     return pathname === href || pathname.startsWith(href + "/");
   };
@@ -140,12 +145,14 @@ export function AppSidebar() {
       style={{ height: "100dvh" }}
     >
       {/* Logo */}
-      <div className={`flex items-center ${collapsed ? "justify-center" : "gap-2.5 px-4"} h-14 shrink-0 border-b border-[var(--border)]`}>
+      <div
+        className={`flex items-center ${collapsed ? "justify-center" : "gap-2.5 px-4"} h-14 shrink-0 border-b border-[var(--border)]`}
+      >
         <Image
           src={BRAND_LOGO}
           alt={BRAND_NAME}
-          width={28}
-          height={28}
+          width={60}
+          height={60}
           className="rounded-lg shrink-0"
           priority
         />
@@ -164,22 +171,47 @@ export function AppSidebar() {
       {/* Divider + bottom section */}
       <div className="shrink-0 border-t border-[var(--border)] px-2 py-2 space-y-0.5">
         {/* Settings (only when authenticated) */}
-        {isAuthenticated && bottomNavItems.map((item) => renderNavItem(item, true))}
+        {isAuthenticated &&
+          bottomNavItems.map((item) => renderNavItem(item, true))}
 
         {/* Theme toggle */}
         <button
           type="button"
           onClick={toggleTheme}
           className="sidebar-nav-item w-full"
-          title={mounted ? `Switch to ${theme === "dark" ? "light" : "dark"} mode` : "Toggle theme"}
+          title={
+            mounted
+              ? `Switch to ${theme === "dark" ? "light" : "dark"} mode`
+              : "Toggle theme"
+          }
         >
           {mounted ? (
-            theme === "dark" ? <Sun size={18} /> : <Moon size={18} />
+            theme === "dark" ? (
+              <Sun size={18} />
+            ) : (
+              <Moon size={18} />
+            )
           ) : (
             <div className="h-[18px] w-[18px]" />
           )}
-          {!collapsed && <span>{mounted ? (theme === "dark" ? "Light Mode" : "Dark Mode") : "Theme"}</span>}
-          {collapsed && <span className="sidebar-tooltip">{mounted ? (theme === "dark" ? "Light Mode" : "Dark Mode") : "Theme"}</span>}
+          {!collapsed && (
+            <span>
+              {mounted
+                ? theme === "dark"
+                  ? "Light Mode"
+                  : "Dark Mode"
+                : "Theme"}
+            </span>
+          )}
+          {collapsed && (
+            <span className="sidebar-tooltip">
+              {mounted
+                ? theme === "dark"
+                  ? "Light Mode"
+                  : "Dark Mode"
+                : "Theme"}
+            </span>
+          )}
         </button>
 
         {/* Collapse toggle */}
@@ -196,7 +228,9 @@ export function AppSidebar() {
 
         {/* User section */}
         {isAuthenticated ? (
-          <div className={`flex items-center ${collapsed ? "justify-center" : "gap-2 px-2"} py-1.5`}>
+          <div
+            className={`flex items-center ${collapsed ? "justify-center" : "gap-2 px-2"} py-1.5`}
+          >
             <div
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white cursor-pointer"
               style={{ background: BRAND_GRADIENT }}
@@ -254,8 +288,16 @@ export function AppSidebar() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 h-14 border-b border-[var(--border)]">
           <div className="flex items-center gap-2.5">
-            <Image src={BRAND_LOGO} alt={BRAND_NAME} width={24} height={24} className="rounded-md" />
-            <span className="text-sm font-semibold text-[var(--text-primary)]">{BRAND_NAME}</span>
+            <Image
+              src={BRAND_LOGO}
+              alt={BRAND_NAME}
+              width={55}
+              height={55}
+              className="rounded-md"
+            />
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              {BRAND_NAME}
+            </span>
           </div>
           <button
             type="button"
@@ -287,25 +329,44 @@ export function AppSidebar() {
 
         {/* Bottom */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--border)] px-2 py-2 space-y-0.5">
-          {isAuthenticated && bottomNavItems.map((item) => {
-            const active = isActive(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`sidebar-nav-item ${active ? "active" : ""}`}
-                onClick={() => setMobileOpen(false)}
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {isAuthenticated &&
+            bottomNavItems.map((item) => {
+              const active = isActive(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`sidebar-nav-item ${active ? "active" : ""}`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
 
-          <button type="button" onClick={toggleTheme} className="sidebar-nav-item w-full">
-            {mounted ? (theme === "dark" ? <Sun size={18} /> : <Moon size={18} />) : <div className="h-[18px] w-[18px]" />}
-            <span>{mounted ? (theme === "dark" ? "Light Mode" : "Dark Mode") : "Theme"}</span>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="sidebar-nav-item w-full"
+          >
+            {mounted ? (
+              theme === "dark" ? (
+                <Sun size={18} />
+              ) : (
+                <Moon size={18} />
+              )
+            ) : (
+              <div className="h-[18px] w-[18px]" />
+            )}
+            <span>
+              {mounted
+                ? theme === "dark"
+                  ? "Light Mode"
+                  : "Dark Mode"
+                : "Theme"}
+            </span>
           </button>
 
           {isAuthenticated ? (
@@ -317,11 +378,16 @@ export function AppSidebar() {
                 {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-[var(--text-primary)]">{user?.name}</p>
+                <p className="truncate text-xs font-medium text-[var(--text-primary)]">
+                  {user?.name}
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => { setMobileOpen(false); setLogoutModalOpen(true); }}
+                onClick={() => {
+                  setMobileOpen(false);
+                  setLogoutModalOpen(true);
+                }}
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-alt)] hover:text-red-500"
               >
                 <LogOut size={14} />
@@ -330,7 +396,10 @@ export function AppSidebar() {
           ) : (
             <button
               type="button"
-              onClick={() => { setMobileOpen(false); setAuthModalOpen(true); }}
+              onClick={() => {
+                setMobileOpen(false);
+                setAuthModalOpen(true);
+              }}
               className="sidebar-nav-item w-full"
             >
               <User size={18} />
@@ -348,7 +417,9 @@ export function AppSidebar() {
     if (isChatPage) {
       // On chat page, open the chat workspace sidebar (which includes nav links)
       window.dispatchEvent(
-        new CustomEvent("swastik:toggle-workspace-sidebar", { detail: { open: true } })
+        new CustomEvent("swastik:toggle-workspace-sidebar", {
+          detail: { open: true },
+        }),
       );
     } else {
       setMobileOpen(true);
@@ -367,7 +438,9 @@ export function AppSidebar() {
         <Menu size={18} />
       </button>
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-sm font-semibold text-[var(--text-primary)]">{BRAND_NAME}</span>
+        <span className="text-sm font-semibold text-[var(--text-primary)]">
+          {BRAND_NAME}
+        </span>
       </div>
       <div className="w-8" /> {/* Spacer for centering */}
     </div>
@@ -396,9 +469,12 @@ export function AppSidebar() {
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
                 <LogOut size={20} className="text-red-500" />
               </div>
-              <h3 className="text-lg font-semibold text-[var(--text-primary)]">Sign Out</h3>
+              <h3 className="text-lg font-semibold text-[var(--text-primary)]">
+                Sign Out
+              </h3>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                Are you sure you want to sign out? Your data will be saved and available when you sign back in.
+                Are you sure you want to sign out? Your data will be saved and
+                available when you sign back in.
               </p>
               <div className="mt-5 flex gap-3">
                 <button
