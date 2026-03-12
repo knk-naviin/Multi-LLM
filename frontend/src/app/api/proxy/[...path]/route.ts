@@ -4,13 +4,18 @@ function backendBaseUrl(): string {
   const fromEnv =
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "http://127.0.0.1:8000";
+    "https://swastik-ai-a2g6.onrender.com";
   return fromEnv.replace(/\/$/, "");
 }
 
-async function forward(request: NextRequest, pathParts: string[]): Promise<Response> {
+async function forward(
+  request: NextRequest,
+  pathParts: string[],
+): Promise<Response> {
   const target = new URL(`${backendBaseUrl()}/${pathParts.join("/")}`);
-  request.nextUrl.searchParams.forEach((value, key) => target.searchParams.set(key, value));
+  request.nextUrl.searchParams.forEach((value, key) =>
+    target.searchParams.set(key, value),
+  );
 
   const headers = new Headers();
   const contentType = request.headers.get("content-type");
@@ -38,7 +43,7 @@ async function forward(request: NextRequest, pathParts: string[]): Promise<Respo
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
       },
     });
   }
@@ -54,7 +59,7 @@ async function forward(request: NextRequest, pathParts: string[]): Promise<Respo
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
   return forward(request, path || []);
@@ -62,7 +67,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
   return forward(request, path || []);
@@ -70,7 +75,7 @@ export async function POST(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
   return forward(request, path || []);
@@ -78,7 +83,7 @@ export async function PUT(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
   return forward(request, path || []);
@@ -86,7 +91,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
   return forward(request, path || []);

@@ -3,14 +3,14 @@ import logging
 from datetime import timezone
 from typing import Any, Dict, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token as google_id_token
-from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel
-from pymongo import ASCENDING, DESCENDING
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request # type: ignore
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
+from fastapi.responses import JSONResponse, StreamingResponse # type: ignore
+from google.auth.transport import requests as google_requests # type: ignore
+from google.oauth2 import id_token as google_id_token # type: ignore
+from motor.motor_asyncio import AsyncIOMotorClient # type: ignore
+from pydantic import BaseModel # type: ignore
+from pymongo import ASCENDING, DESCENDING # type: ignore
 
 from auth_utils import (
     create_jwt_token,
